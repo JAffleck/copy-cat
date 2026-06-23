@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <h3>🐈 Copy Cat</h3>
+  
+  <div id="mode-display" class="mode-status">🔵 Split + Raw</div>
+
+  <fieldset class="setting-fieldset">
+    <legend>Selection Snipping Style</legend>
+    <span class="hotkey-hint">Change with Shift + Space</span>
+    <div class="radio-group">
+      <label>
+        <input type="radio" name="trackingMode" value="Single-snip"> Single-snip
+      </label>
+      <label>
+        <input type="radio" name="trackingMode" value="Multi-snip"> Multi-snip
+      </label>
+    </div>
+  </fieldset>
+
+  <div class="section-title">Legend</div>
+  <ul class="legend-list">
+    <li>🔴 Combined + Quotes</li>
+    <li>🔵 Split + Raw</li>
+    <li>🟦 Split + Quotes</li>
+    <li>🟩 Split + Quotes + Commas</li>
+	<li>🟩 CSV (Comma-Separated-Values)</li></li>
+    <li>#️⃣ Split + Numbers</li>
+    <li>⏺️ Split + Bullets</li>
+  </ul>
+
+  <hr>
+
+  <div class="section-title">Hotkeys (While Active)</div>
+  <ul class="hotkey-list">
+    <li><span class="hotkey">Ctrl+Shift+Click</span> Activate/Deactivate Plugin</li>
+    <li><span class="hotkey">Esc / ⌫</span> Cancel Copy</li>
+    <li><span class="hotkey">Left-Click</span> Copy Selection</li>
+    <li><span class="hotkey">Right-Click</span> Multi-snip Freeze</li>
+    <li><span class="hotkey">Tab</span> Cycle Line Styles</li>
+    <li><span class="hotkey">Shift+Tab</span> Cycle Line Styles(reverse)</li>
+    <li><span class="hotkey">Q</span> Cycle Style Options (Forward)</li>
+    <li><span class="hotkey">Shift+Q</span> Cycle Style Options (Reverse)</li>
+    <li><span class="hotkey">⬆️ / ⬇️ / Wheel</span> Zoom to Subnodes</li>
+  </ul>
+
+  <div class="setting-group">
+    <div class="label-block">
+      <div class="title">Multi-snip Mode</div>
+      <div class="desc">Right-Click - Freeze and add new selection</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="trackingModeToggle">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
