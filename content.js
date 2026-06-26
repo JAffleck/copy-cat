@@ -5,7 +5,11 @@
   let frozenRanges = [];
   let shadowHost = null;
   let shadowRoot = null;
-  let isPivotMode = false; 
+  let zoomMode = 'ELEMENT_ZOOM'; // 'ELEMENT_ZOOM' | 'BOOKEND_ZOOM'
+  let failedZoomInAttempt = false;
+  let failedZoomOutAttempt = false;
+  let excludeDelimiters = false;   // X toggles — auto-trim bookend chars after every snap
+  let savedUntrimmedRange = null;   // Saved original Range for X toggle restore
   
   // Track global mouse position for smart-zooming
   let lastMouseX = 0;
@@ -33,6 +37,7 @@
   const TAG_PRIORITY = ['A', 'SPAN', 'I', 'B', 'U', 'STRONG', 'BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'LABEL', 'P', 'LI', 'TD', 'TH', 'TR', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'];
 
   // --- DRILL-THROUGH HELPER ---
+  // Get the deepest element at a point, preferring the parent of the text node at caret
   function getDeepElementFromPoint(x, y) {
     if (document.caretRangeFromPoint) {
       const range = document.caretRangeFromPoint(x, y);
@@ -44,59 +49,160 @@
   }
 
   // --- GRANULAR TEXT ZOOM HELPER ---
-  function getGranularRange(textNode, offset, level) {
+  // Zoom hierarchy (Element Zoom):
+  //   Element → Text node → Bookend phrase (level 2) → Nested bookend → Word (level 1) → Segment (level 2)
+  //   Zoom-out reverses via zoomHistory stack.
+  //   level 0 = text node, level 1 = word, level 2+ = delimiter-enclosed phrase
+  // --- GRANULAR TEXT ZOOM HELPERS ---
+  // Zoom hierarchy: Bookend phrase → Word (including snake_case) → Segment (split on _/-)
+  // Each zoom-in tries the next step in order; zoom-out pops zoomHistory.
+
+  // Step 1: Find nearest enclosing paired delimiter within [boundStart, boundEnd)
+  // Find the nearest enclosing pair of delimiters (quotes, brackets, etc.) around an offset within bounds
+  function getBookendRange(textNode, offset, boundStart, boundEnd) {
+    const text = textNode.nodeValue || "";
+    const PAIRS = {
+      '(': ')', ')': '(', '[': ']', ']': '[', '{': '}', '}': '{',
+      '"': '"', "'": "'",
+      '\u201C': '\u201D', '\u201D': '\u201C',
+      '\u2018': '\u2019', '\u2019': '\u2018',
+      '\u00AB': '\u00BB', '\u00BB': '\u00AB'
+    };
+    let start = boundStart, end = boundEnd, leftChar = '';
+    for (let i = offset - 1; i >= boundStart; i--) {
+      if (PAIRS[text[i]] !== undefined) { start = i + 1; leftChar = text[i]; break; }
+    }
+    if (!leftChar) return null;
+    const matchChar = PAIRS[leftChar];
+    let found = false;
+    for (let i = offset; i < boundEnd; i++) {
+      if (text[i] === matchChar) { end = i; found = true; break; }
+    }
+    if (!found) return null;
+    while (start < end && /\s/.test(text[start])) start++;
+    while (end > start && /\s/.test(text[end - 1])) end--;
+    if (start >= end) return null;
+    const range = document.createRange();
+    range.setStart(textNode, start);
+    range.setEnd(textNode, end);
+    range.textZoomLevel = 1;
+    // Store open/close character positions for X-toggle rect calculation
+    range._openNode = textNode;
+    range._openOffset = start - 1;  // position of the opening delimiter
+    range._closeNode = textNode;
+    range._closeOffset = end;       // position of the closing delimiter
+    return range;
+  }
+
+  // Step 2: Find word within [boundStart, boundEnd)
+  // Find a word boundary around an offset within bounds (includes accented chars, hyphens)
+  function getWordRange(textNode, offset, boundStart, boundEnd) {
     const text = textNode.nodeValue || "";
     const wordBoundaries = /[^\w\-\u00C0-\u017F]/;
+    let start = offset, end = offset;
+    while (start > boundStart && !wordBoundaries.test(text[start - 1])) start--;
+    while (end < boundEnd && !wordBoundaries.test(text[end])) end++;
+    const match = text.substring(start, end).replace(/^[-]+|[-]+$/g, '');
+    if (!match) return null;
+    const actualStart = start + text.substring(start, end).indexOf(match);
+    const range = document.createRange();
+    range.setStart(textNode, actualStart);
+    range.setEnd(textNode, actualStart + match.length);
+    range.textZoomLevel = 2;
+    return range;
+  }
 
-    if (level === 1) {
-        let start = offset, end = offset;
-        while (start > 0 && !wordBoundaries.test(text[start - 1])) start--;
-        while (end < text.length && !wordBoundaries.test(text[end])) end++;
-        
-        const match = text.substring(start, end).replace(/^[-]+|[-]+$/g, '');
-        const actualStart = start + text.substring(start, end).indexOf(match);
-        const range = document.createRange();
-        range.setStart(textNode, actualStart);
-        range.setEnd(textNode, actualStart + match.length);
-        range.textZoomLevel = level;
-        return range;
-    } else if (level >= 2) {
-        // Deeper zoom: split by delimiters
-        const bookends = ['-', ',', ';', '(', ')', '[', ']', '{', '}'];
-        let start = 0, end = text.length;
-        let hasBookend = false;
-        
-        for (let i = offset - 1; i >= 0; i--) {
-            if (bookends.includes(text[i])) { start = i + 1; hasBookend = true; break; }
+  // Step 3: Split snake_case or kebab-case within [boundStart, boundEnd)
+  // Split a snake_case or kebab-case identifier into a segment at cursor position
+  function getSegmentRange(textNode, offset, boundStart, boundEnd) {
+    const text = textNode.nodeValue || "";
+    const splitters = ['_', '-'];
+    let start = boundStart, end = boundEnd;
+    let hasSplitter = false;
+    for (let i = offset - 1; i >= boundStart; i--) {
+      if (splitters.includes(text[i])) { start = i + 1; hasSplitter = true; break; }
+    }
+    for (let i = offset; i < boundEnd; i++) {
+      if (splitters.includes(text[i])) { end = i; hasSplitter = true; break; }
+    }
+    if (!hasSplitter) return null;
+    while (start < end && /\s/.test(text[start])) start++;
+    while (end > start && /\s/.test(text[end - 1])) end--;
+    if (start >= end) return null;
+    const range = document.createRange();
+    range.setStart(textNode, start);
+    range.setEnd(textNode, end);
+    range.textZoomLevel = 3;
+    return range;
+  }
+
+  // Try next zoom step: bookend → word → segment (first narrower contained result wins)
+  // Try each zoom-in step (bookend → word → segment); return the first narrower match
+  function getNextZoomRange(textNode, offset, currentRange) {
+    const curLen = currentRange ? currentRange.toString().length : textNode.nodeValue.length;
+    const bStart = currentRange ? currentRange.startOffset : 0;
+    const bEnd = currentRange ? currentRange.endOffset : textNode.nodeValue.length;
+    const steps = [getBookendRange, getWordRange, getSegmentRange];
+    for (let fn of steps) {
+      const newRange = fn(textNode, offset, bStart, bEnd);
+      if (newRange && newRange.toString().length < curLen) {
+        if (!currentRange || (newRange.compareBoundaryPoints(Range.START_TO_START, currentRange) >= 0 &&
+            newRange.compareBoundaryPoints(Range.END_TO_END, currentRange) <= 0)) {
+          return newRange;
         }
-        for (let i = offset; i < text.length; i++) {
-            if (bookends.includes(text[i])) { end = i; hasBookend = true; break; }
-        }
-
-        // FIX: If no bookends constrain this phrase, do not blow up to full node text length
-        if (!hasBookend) return null;
-
-        // Trim whitespace
-        while (start < end && /\s/.test(text[start])) start++;
-        while (end > start && /\s/.test(text[end - 1])) end--;
-        
-        if (start >= end) return null;
-
-        const range = document.createRange();
-        range.setStart(textNode, start);
-        range.setEnd(textNode, end);
-        range.textZoomLevel = level;
-        return range;
+      }
     }
     return null;
   }
-  // --- PIVOT MODE HELPER ---
-  function snapToNearestBookend() {
-    if (!currentTargetElement) return;
+  // Bookend pairs for snap-to-nearest — structural, multi-element capable
+  // Bookend Zoom hierarchy:
+  //   Widest enclosing pair → Nested pair (snapToInnerBookend) → Word (zoom-in falls back to element zoom)
+  //   Zoom-out via snapToOuterBookend walks ancestor chain for wider enclosing pairs.
+  const BOOKEND_PAIRS = {
+    '"': '"',
+    '“': '”',   // “” smart double quotes
+    '‘': '’',   // ‘’ smart single quotes
+    '«': '»',   // «» French guillemets
+    '`': '`',
+    '(': ')',
+    '[': ']',
+    '{': '}',
+    '⟨': '⟩'    // ⟨⟩ mathematical angle brackets
+  };
 
-    // 1. Identify the structural container
-    let node = currentTargetElement instanceof Range ? currentTargetElement.startContainer : currentTargetElement;
-    let container = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  // Find the widest bookend pair enclosing the cursor, walking up ancestors for multi-element pairs
+  function snapToNearestBookend() {
+    // Identify the structural container — start from element under mouse cursor
+    let container;
+    if (shadowHost) shadowHost.style.visibility = 'hidden';
+    const elUnderMouse = getDeepElementFromPoint(lastMouseX, lastMouseY);
+    if (shadowHost) shadowHost.style.visibility = 'visible';
+    if (elUnderMouse) {
+      container = elUnderMouse.nodeType === Node.ELEMENT_NODE ? elUnderMouse : elUnderMouse.parentElement;
+    } else if (currentTargetElement) {
+      let node = currentTargetElement instanceof Range ? currentTargetElement.startContainer : currentTargetElement;
+      container = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    } else {
+      return null;
+    }
+    
+    // Walk up to find an ancestor that contains bookend pairs (handles multi-element mw-editsection)
+    let searchContainer = container;
+    while (searchContainer && searchContainer !== document.body) {
+      const text = searchContainer.textContent || '';
+      let hasPair = false;
+      for (let char in BOOKEND_PAIRS) {
+        const closeChar = BOOKEND_PAIRS[char];
+        if (char === closeChar) {
+          if (text.indexOf(char) !== text.lastIndexOf(char)) { hasPair = true; break; }
+        } else {
+          if (text.includes(char) && text.includes(closeChar)) { hasPair = true; break; }
+        }
+      }
+      if (hasPair) break;
+      searchContainer = searchContainer.parentElement;
+    }
+    container = (searchContainer && searchContainer !== document.body) ? searchContainer : container;
     
     // 2. Map all text nodes to a flat array to handle multi-node selections
     let fullText = "";
@@ -109,7 +215,6 @@
                 fullText += node.nodeValue[i];
             }
         } else if (node.nodeType === Node.ELEMENT_NODE) {
-            // Include text from spans/anchors so [edit] is seen as a whole string
             for (let child of node.childNodes) {
                 collect(child);
             }
@@ -117,79 +222,142 @@
     }
     collect(container);
 
-	// 3. Find current cursor index in our flat map
-	let cursorIdx = -1;
+    // 3. Find current cursor index in our flat map — prefer mouse position
+    let cursorIdx = -1;
 
-	const targetNode =
-		currentTargetElement instanceof Range
-			? currentTargetElement.startContainer
-			: currentTargetElement;
-
-	const targetOffset =
-		currentTargetElement instanceof Range
-			? currentTargetElement.startOffset
-			: 0;
-
-	for (let i = 0; i < map.length; i++) {
-		if (map[i].node === targetNode && map[i].offset === targetOffset) {
-			cursorIdx = i;
-			break;
-		}
-	}
-
-	// Fallback if we couldn't map the cursor exactly
-	if (cursorIdx === -1) {
-		cursorIdx = Math.floor(fullText.length / 2);
-	}
-
-	// 4. Search for the widest surrounding pair
-	const pairs = {
-		'"': '"',
-		'`': '`',
-		'(': ')',
-		'[': ']',
-		'{': '}',
-		'⟨': '⟩'
-	};
-
-	let bestRange = null;
-
-	for (let char in pairs) {
-		let open, close;
-
-		// Symmetric bookends (" and `)
-		if (char === pairs[char]) {
-			open = fullText.lastIndexOf(char, cursorIdx - 1);
-			close = fullText.indexOf(char, cursorIdx + 1);
-		} else {
-			open = fullText.lastIndexOf(char, cursorIdx);
-			close = fullText.indexOf(pairs[char], cursorIdx);
-		}
-
-		if (open !== -1 && close !== -1 &&
-			open <= cursorIdx && close >= cursorIdx) {
-
-			const start = map[open];
-			const end = map[close];
-
-			if (!start || !end) continue;
-
-			const range = document.createRange();
-			range.setStart(start.node, start.offset);
-			range.setEnd(end.node, end.offset + 1); // +1 to capture closing bookend
-			range.textZoomLevel = 99; // Pivot level
-
-			bestRange = range;
-		}
-	}
-
-    if (bestRange) {
-        zoomHistory.push(currentTargetElement);
-        currentTargetElement = bestRange;
-        updateUI();
+    // Try caretRangeFromPoint first (most accurate)
+    if (document.caretRangeFromPoint) {
+      const caret = document.caretRangeFromPoint(lastMouseX, lastMouseY);
+      if (caret && caret.startContainer && caret.startContainer.nodeType === Node.TEXT_NODE) {
+        for (let i = 0; i < map.length; i++) {
+          if (map[i].node === caret.startContainer && map[i].offset === caret.startOffset) {
+            cursorIdx = i;
+            break;
+          }
+        }
+      }
     }
+
+    // Fallback: use the current element's position in the map
+    if (cursorIdx === -1) {
+      const targetNode =
+        currentTargetElement instanceof Range
+          ? currentTargetElement.startContainer
+          : currentTargetElement;
+
+      const targetOffset =
+        currentTargetElement instanceof Range
+          ? currentTargetElement.startOffset
+          : 0;
+
+      for (let i = 0; i < map.length; i++) {
+        if (map[i].node === targetNode && map[i].offset === targetOffset) {
+          cursorIdx = i;
+          break;
+        }
+      }
+    }
+
+    // Last fallback if we couldn't map the cursor exactly
+    if (cursorIdx === -1) {
+      cursorIdx = Math.floor(fullText.length / 2);
+    }
+
+    // 4. Search for all enclosing pairs, pick the widest (tiebreaker: earliest open char)
+    let bestRange = null;
+    let bestOpenIdx = Infinity;
+
+    for (let char in BOOKEND_PAIRS) {
+      let open, close;
+      const closeChar = BOOKEND_PAIRS[char];
+
+      if (char === closeChar) {
+        // Symmetric bookends (" and `)
+        open = fullText.lastIndexOf(char, cursorIdx - 1);
+        close = fullText.indexOf(char, cursorIdx + 1);
+      } else {
+        // Asymmetric pair: walk backward through open chars, find matching close with nesting,
+        // until we find a pair whose close is at or after the cursor (actually encloses it)
+        open = fullText.lastIndexOf(char, cursorIdx);
+        close = -1;
+        while (open !== -1) {
+          let depth = 1;
+          close = -1;
+          for (let i = open + 1; i < fullText.length; i++) {
+            if (fullText[i] === char) depth++;
+            else if (fullText[i] === closeChar) depth--;
+            if (depth === 0) { close = i; break; }
+          }
+          if (close !== -1 && close >= cursorIdx) break;
+          open = fullText.lastIndexOf(char, open - 1);
+          close = -1;
+        }
+      }
+
+      if (open !== -1 && close !== -1 && open <= cursorIdx && close >= cursorIdx) {
+        // Tiebreaker: pick the pair with the earliest (leftmost) open character
+        if (open < bestOpenIdx) {
+          bestOpenIdx = open;
+          const start = map[open];
+          const end = map[close];
+          if (start && end) {
+            const range = document.createRange();
+            range.setStart(start.node, start.offset);
+            range.setEnd(end.node, end.offset + 1); // +1 to capture closing bookend
+            range.textZoomLevel = 99;
+            // Store open/close indices and container for zoom-in/out navigation
+            range._bookendOpenIdx = open;
+            range._bookendCloseIdx = close;
+            range._bookendContainer = container;
+            range._openNode = start.node;
+            range._openOffset = start.offset;
+            range._closeNode = end.node;
+            range._closeOffset = end.offset;
+            bestRange = range;
+          }
+        }
+      }
+    }
+
+    return bestRange;
   }
+  // Create a Range spanning all text nodes within an element (first char to last char)
+  function elementToRange(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return null;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const first = walker.firstChild();
+    walker.currentNode = el;
+    const last = walker.lastChild();
+    if (!first || !last) return null;
+    const range = document.createRange();
+    range.setStart(first, 0);
+    range.setEnd(last, last.nodeValue.length);
+    return range;
+  }
+
+  // Find the enclosing bookend pair at cursor position — tries single-text-node first, then full map
+  function findEnclosingPair() {
+    // Try lightweight: search for bookend pair in the text node at cursor
+    if (document.caretRangeFromPoint) {
+      const caret = document.caretRangeFromPoint(lastMouseX, lastMouseY);
+      if (caret && caret.startContainer && caret.startContainer.nodeType === Node.TEXT_NODE) {
+        const range = getBookendRange(caret.startContainer, caret.startOffset, 0, caret.startContainer.nodeValue.length);
+        if (range && range._openNode === caret.startContainer) {
+          range.setStart(range._openNode, range._openOffset);
+          range.setEnd(range._closeNode, range._closeOffset + 1);
+          range.textZoomLevel = 99;
+          range._bookendContainer = caret.startContainer.parentElement;
+          range._bookendEl = caret.startContainer.parentElement;
+          return range;
+        }
+      }
+    }
+    // Fall back to full snapToNearestBookend (handles multi-element pairs)
+    return snapToNearestBookend();
+  }
+
   // --- SHADOW DOM INITIALIZATION ---
+  // Create the shadow DOM host, overlay container, and preview toast; inject into the page
   function initShadowDOM() {
     if (shadowHost) return;
     
@@ -220,6 +388,7 @@
     document.documentElement.appendChild(shadowHost);
   }
 
+  // Remove the shadow DOM host from the page and null out references
   function destroyShadowDOM() {
     if (shadowHost) {
       shadowHost.remove();
@@ -229,10 +398,48 @@
   }
 
   // --- GEOMETRIC MAPPING PROTOCOL ---
+  // Get client rects for a target (Element, Text node, or Range); handles inline multi-line wrapping
   function getTargetRects(target) {
     if (!target) return [];
     
     if (target instanceof Range) {
+      // For bookend ranges with character positions, compute rect from open/close chars
+      if (target._openNode && target._closeNode && target._openNode.nodeType === Node.TEXT_NODE && target._closeNode.nodeType === Node.TEXT_NODE) {
+        try {
+          const openR = document.createRange();
+          openR.setStart(target._openNode, target._openOffset);
+          openR.setEnd(target._openNode, target._openOffset + 1);
+          const openRect = openR.getBoundingClientRect();
+          const closeR = document.createRange();
+          closeR.setStart(target._closeNode, target._closeOffset);
+          closeR.setEnd(target._closeNode, target._closeOffset + 1);
+          const closeRect = closeR.getBoundingClientRect();
+          if (openRect.width > 0 && closeRect.width > 0) {
+            const top = Math.min(openRect.top, closeRect.top);
+            const bottom = Math.max(openRect.bottom, closeRect.bottom);
+            let left, width;
+            if (target._trimmed) {
+              left = openRect.right;
+              width = closeRect.left - openRect.right;
+            } else {
+              left = openRect.left;
+              width = closeRect.right - openRect.left;
+            }
+            if (width > 0 && (bottom - top) > 0) {
+              return [{ top, left, width, height: bottom - top }];
+            }
+          }
+        } catch (e) { /* fall through */ }
+      }
+      // Fallback for pseudo-element bookends: use element rect for full, range rect for trimmed
+      if (target._bookendEl) {
+        if (target._trimmed) {
+          const rects = Array.from(target.getClientRects());
+          if (rects.length > 0) return rects;
+        }
+        const rect = target._bookendEl.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) return [rect];
+      }
       return Array.from(target.getClientRects());
     }
     
@@ -255,7 +462,31 @@
     return [];
   }
 
+  // Merge rects on the same line to prevent stacked opacity from overlapping inline segments
+  // Merge rects that share the same vertical line to avoid doubled opacity on overlapping inline fragments
+  function mergeRects(rects) {
+    if (rects.length <= 1) return rects;
+    const merged = [];
+    const sorted = [...rects].sort((a, b) => a.top - b.top || a.left - b.left);
+    let current = { top: sorted[0].top, left: sorted[0].left, right: sorted[0].right, bottom: sorted[0].bottom };
+    for (let i = 1; i < sorted.length; i++) {
+      const r = sorted[i];
+      // Merge rects that overlap vertically (same visual line), regardless of horizontal gap
+      if (r.top < current.bottom && r.bottom > current.top) {
+        // Same line — merge horizontally
+        current.right = Math.max(current.right, r.right);
+        current.bottom = Math.max(current.bottom, r.bottom);
+      } else {
+        merged.push({ top: current.top, left: current.left, width: current.right - current.left, height: current.bottom - current.top });
+        current = { top: r.top, left: r.left, right: r.right, bottom: r.bottom };
+      }
+    }
+    merged.push({ top: current.top, left: current.left, width: current.right - current.left, height: current.bottom - current.top });
+    return merged;
+  }
+
   // --- DYNAMIC MODE THEME COLORS ---
+  // Return the hex color matching the current output format / line decoration mode
   function getActiveThemeColor() {
     if (settings.outputFormat === 'COMBINED') {
       return '#ef4444'; // 🔴 Red
@@ -271,6 +502,7 @@
     }
   }
 
+  // Convert a hex color string and alpha value to an rgba() CSS string
   function hexToRgba(hex, alpha) {
     hex = hex.replace('#', '');
     let r = parseInt(hex.substring(0, 2), 16);
@@ -280,6 +512,7 @@
   }
 
   // --- MULTI-SELECT COLLISION MONITOR ---
+  // Check whether a target element/range overlaps with any frozen selection in multi-snip mode
   function isCollidingWithFrozen(target) {
     if (!target) return false;
     let targetNode = target instanceof Range ? target.commonAncestorContainer : target;
@@ -300,6 +533,7 @@
   }
   
   // --- RENDERING UI ---
+  // Render all overlay boxes (frozen + active) and update the preview toast with compiled output
   function updateUI(toastMessage = null) {
     if (!shadowRoot) return;
     const overlayContainer = shadowRoot.getElementById('overlays-container');
@@ -319,57 +553,54 @@
       toast.style.minWidth = '';
       toast.style.padding = '';           
     }
-    
-    function getContextualHint(element) {
-        const text = getCleanText(element);
-        const bookends = {
-            '(': 'Parentheses',
-            '[': 'Brackets',
-            '{': 'Braces',
-            '"': 'Quotes',
-            "'": 'Quotes'
-        };
-        for (let char in bookends) {
-            if (text.includes(char)) return `[Space] Select inside ${bookends[char]}`;
-        }
-        return null;
-    }
 
     let hint = "";
-    if (!isPivotMode) {
-        let hintStr = getContextualHint(currentTargetElement);
-        if (hintStr) {
-            hint = `<div style="font-size: 11px; color: #60a5fa; margin-top: 4px;">${hintStr}</div>`;
-        }
+    if (zoomMode === 'ELEMENT_ZOOM') {
+        hint = `<div style="font-size: 11px; color: #60a5fa; margin-top: 4px;">[Space] Zoom into surrounding brackets/quotes</div>`;
     } else {
-        hint = `<div style="font-size: 11px; color: #f59e0b; margin-top: 4px;">[Space] Back to regular zoom</div>`;
+        hint = `<div style="font-size: 11px; color: #f59e0b; margin-top: 4px;">[Space] Back to element zoom</div>`;
     }
 
     const themeColor = getActiveThemeColor();
 
     frozenRanges.forEach(el => {
-      let rects = el.getClientRects(); 
+      let rects = mergeRects(getTargetRects(el));
       Array.from(rects).forEach(rect => {
+        if (rect.width === 0 || rect.height === 0) return;
           const box = document.createElement('div');
           box.className = 'highlight-active';
-          box.style.cssText = `top: ${rect.top + window.scrollY}px; left: ${rect.left + window.scrollX}px; width: ${rect.width}px; height: ${rect.height}px; background-color: ${hexToRgba('#10b981', 0.2)}; border: 2px dashed #10b981; position: absolute; pointer-events: none;`;
+          box.style.cssText = `top: ${rect.top}px; left: ${rect.left}px; width: ${rect.width}px; height: ${rect.height}px; background-color: ${hexToRgba('#10b981', 0.2)}; border: 2px dashed #10b981; position: absolute; pointer-events: none;`;
           overlayContainer.appendChild(box);
       });
     });
 
     if (currentTargetElement) {
       let rects = getTargetRects(currentTargetElement);
+      rects = mergeRects(rects);
+      const isSmall = currentTargetElement instanceof Range || currentTargetElement.nodeType === Node.TEXT_NODE;
       rects.forEach(rect => {
         if (rect.width === 0 || rect.height === 0) return;
         const box = document.createElement('div');
-        box.style.cssText = `
+        box.style.cssText = isSmall ? `
+          position: absolute;
+          top: ${rect.top}px;
+          left: ${rect.left}px;
+          width: ${rect.width}px;
+          height: ${rect.height}px;
+          border-top: 2px dashed ${themeColor};
+          border-bottom: 2px dashed ${themeColor};
+          border-left: 2px dashed ${themeColor};
+          border-right: 2px dashed ${themeColor};
+          pointer-events: none;
+          transition: all 0.05s ease-out;
+        ` : `
           position: absolute;
           top: ${rect.top}px;
           left: ${rect.left}px;
           width: ${rect.width}px;
           height: ${rect.height}px;
           background-color: ${hexToRgba(themeColor, 0.3)};
-          border: 2px solid ${themeColor};
+          border: 2px dashed ${themeColor};
           border-radius: 4px;
           box-sizing: border-box;
           pointer-events: none;
@@ -414,7 +645,7 @@
     toast.innerHTML = `
       <div class="legend-icon" style="font-size: 12px; margin-bottom: 8px; border-bottom: 1px solid #3f3f46; padding-bottom: 4px;">
         <strong>${primaryIcon}</strong> 
-        ${modeDisplay}  
+        ${modeDisplay}${zoomMode === 'BOOKEND_ZOOM' ? ' — Bookend' : ''}  
         ${settings.outputFormat === 'COMBINED' ? 'Combined' : decorationLabels[settings.lineDecoration]} ${styleOption ? `${styleOption}` : ''}
       </div>
       <pre>${escapeHtml(compileOutput()) || '...'}</pre>
@@ -422,8 +653,10 @@
     `;
   }
 
+  // Escape HTML special characters for safe rendering in the preview toast
   function escapeHtml(str) { return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
+  // Get visible text from interactive elements (SELECT, INPUT, TEXTAREA, contenteditable)
   function getInteractiveElementText(element) {
     if (!element) return "";
     const tagName = element.tagName && element.tagName.toUpperCase();
@@ -448,6 +681,7 @@
   }
 
   // --- PERFORMANCE TUNED METRICS ENGINE ---
+  // Calculate total visible text length within an element, skipping hidden/script/style nodes
   function getVisibleTextLength(rootElement) {
     if (!rootElement) return 0;
 
@@ -493,6 +727,7 @@
     return totalLength;
   }
 
+  // Drill down from an element to the tightest child element or text node under the cursor
   function getTightestTextElement(element, x, y) {
     if (!element) return null;
   
@@ -535,10 +770,38 @@
         narrowed = true;
       }
     }
+    // 3. Fallback: check text node children (element-only loop skips them)
+    // This catches text directly inside an element that has no containing element child
+    if (current.nodeType === Node.ELEMENT_NODE && x !== undefined && y !== undefined) {
+      const directTextNodes = Array.from(current.childNodes || []).filter(
+        n => n.nodeType === Node.TEXT_NODE && n.nodeValue.trim().length > 0
+      );
+      for (let tn of directTextNodes) {
+        const range = document.createRange();
+        range.selectNodeContents(tn);
+        const rects = range.getClientRects();
+        for (let rect of rects) {
+          if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+            return tn;
+          }
+        }
+      }
+    }
     return current;
   }
   
+  // Safe range/selection equality check — handles both Range and Element types
+  function sameSelection(a, b) {
+    if (!a || !b) return a === b;
+    if (a instanceof Range && b instanceof Range) {
+      return a.compareBoundaryPoints(Range.START_TO_START, b) === 0 &&
+             a.compareBoundaryPoints(Range.END_TO_END, b) === 0;
+    }
+    return a === b;
+  }
+
   // --- SELECTION & ZOOM LOGIC ---
+  // Evaluate mouse coordinates: update currentTargetElement based on zoom mode and tracking mode
   function evaluateMouseCoords(clientX, clientY) {
     if (!shadowHost) return;
     
@@ -548,8 +811,31 @@
 
     if (!el) return;
 
-    let currentZoomLevel = (currentTargetElement instanceof Range) ? currentTargetElement.textZoomLevel : 0;
-    if (currentZoomLevel > 0) {
+    // Bookend Zoom: follow mouse, re-snap to nearest bookend pair at cursor
+    if (zoomMode === 'BOOKEND_ZOOM') {
+        const snapped = snapToNearestBookend();
+        if (snapped) {
+            if (settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(snapped)) {
+                if (currentTargetElement !== null) { currentTargetElement = null; updateUI(); }
+                return;
+            }
+            if (!sameSelection(currentTargetElement, snapped)) {
+                currentTargetElement = maybeTrim(snapped);
+                failedZoomInAttempt = false;
+                failedZoomOutAttempt = false;
+                updateUI();
+            }
+        } else {
+            if (currentTargetElement !== null) {
+                currentTargetElement = null;
+                updateUI();
+            }
+        }
+        return;
+    }
+
+    // Element Zoom granular tracking: re-evaluate at current mouse position
+    if (currentTargetElement instanceof Range) {
         let targetNode = null;
         let offset = -1;
         if (document.caretRangeFromPoint) {
@@ -560,19 +846,14 @@
             }
         }
         if (targetNode && offset !== -1) {
-            let newRange = getGranularRange(targetNode, offset, currentZoomLevel);
-            // FIX: Gracefully fallback to level 1 word-tracking if level 2 bookends aren't present
-            if (!newRange && currentZoomLevel === 2) {
-                newRange = getGranularRange(targetNode, offset, 1);
-            }
+            let newRange = getNextZoomRange(targetNode, offset, null);
             if (newRange) {
                 if (settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(newRange)) return;
-
-                if (!currentTargetElement || currentTargetElement.toString() !== newRange.toString()) {
+                if (!sameSelection(currentTargetElement, newRange)) {
                     currentTargetElement = newRange;
                     updateUI();
                 }
-                return; 
+                return;
             }
         }
     }
@@ -594,14 +875,321 @@
     }
     
     if (currentTargetElement !== current) {
-      zoomHistory = []; 
+      // Preserve zoom history when in granular text zoom within same container
+      const keepHistory = currentTargetElement instanceof Range &&
+        (current === currentTargetElement.commonAncestorContainer ||
+         (current.contains && current.contains(currentTargetElement.commonAncestorContainer)));
+      if (!keepHistory) {
+        zoomHistory = [];
+      }
       currentTargetElement = current;
       updateUI();
     }
   }
 
+  // Bookend Zoom: snap to narrower pair within current range
+  // Bookend zoom-in: find the narrowest bookend pair inside the current selection that encloses the cursor
+  function snapToInnerBookend() {
+    if (!currentTargetElement || !(currentTargetElement instanceof Range)) return null;
+    if (!currentTargetElement._bookendOpenIdx && currentTargetElement._bookendOpenIdx !== 0) return null;
+    
+    const innerStart = currentTargetElement._bookendOpenIdx + 1;
+    const innerEnd = currentTargetElement._bookendCloseIdx - 1;
+    if (innerStart >= innerEnd) return null;
+
+    const container = currentTargetElement._bookendContainer;
+    if (!container) return null;
+
+    // Collect text and map from the container
+    let fullText = "";
+    let map = [];
+    (function collect(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        for (let i = 0; i < node.nodeValue.length; i++) {
+          map.push({ node: node, offset: i });
+          fullText += node.nodeValue[i];
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        for (let child of node.childNodes) collect(child);
+      }
+    })(container);
+
+    // Find cursor position relative to the full text
+    let cursorIdx = -1;
+    if (document.caretRangeFromPoint) {
+      const caret = document.caretRangeFromPoint(lastMouseX, lastMouseY);
+      if (caret && caret.startContainer && caret.startContainer.nodeType === Node.TEXT_NODE) {
+        for (let i = 0; i < map.length; i++) {
+          if (map[i].node === caret.startContainer && map[i].offset === caret.startOffset) {
+            cursorIdx = i;
+            break;
+          }
+        }
+      }
+    }
+    // Fallback: try the current range's midpoint
+    if (cursorIdx === -1) {
+      cursorIdx = Math.floor((innerStart + innerEnd) / 2);
+    }
+    // If midpoint is outside any inner pair, scan from innerStart forward
+    // to find a position that falls within at least one bookend pair
+    if (cursorIdx !== -1) {
+      let foundAny = false;
+      for (let char in BOOKEND_PAIRS) {
+        const closeChar = BOOKEND_PAIRS[char];
+        let o, c;
+        if (char === closeChar) {
+          o = fullText.lastIndexOf(char, cursorIdx - 1);
+          c = fullText.indexOf(char, cursorIdx + 1);
+        } else {
+          o = fullText.lastIndexOf(char, cursorIdx);
+          c = fullText.indexOf(closeChar, cursorIdx);
+        }
+        if (o !== -1 && c !== -1 && o > innerStart && c < innerEnd && o <= cursorIdx && c >= cursorIdx) {
+          foundAny = true;
+          break;
+        }
+      }
+      if (!foundAny) {
+        // Scan forward from innerStart to find first position inside a pair
+        for (let pos = innerStart + 1; pos < innerEnd; pos++) {
+          for (let char in BOOKEND_PAIRS) {
+            const closeChar = BOOKEND_PAIRS[char];
+            let o, c;
+            if (char === closeChar) {
+              o = fullText.lastIndexOf(char, pos - 1);
+              c = fullText.indexOf(char, pos + 1);
+            } else {
+              o = fullText.lastIndexOf(char, pos);
+              c = fullText.indexOf(closeChar, pos);
+            }
+            if (o !== -1 && c !== -1 && o > innerStart && c < innerEnd && o <= pos && c >= pos) {
+              cursorIdx = pos;
+              foundAny = true;
+              break;
+            }
+          }
+          if (foundAny) break;
+        }
+      }
+    }
+
+    // Find narrowest enclosing pair within [innerStart, innerEnd]
+    let bestRange = null;
+    let bestSpan = Infinity;
+    let bestOpenIdx = Infinity;
+
+    for (let char in BOOKEND_PAIRS) {
+      const closeChar = BOOKEND_PAIRS[char];
+      let open, close;
+
+      if (char === closeChar) {
+        open = fullText.lastIndexOf(char, cursorIdx - 1);
+        close = fullText.indexOf(char, cursorIdx + 1);
+      } else {
+        open = fullText.lastIndexOf(char, cursorIdx);
+        close = fullText.indexOf(closeChar, cursorIdx);
+      }
+
+      if (open !== -1 && close !== -1 && open > innerStart && close < innerEnd && open <= cursorIdx && close >= cursorIdx) {
+        const span = close - open;
+        // Pick narrowest; tiebreaker: earliest open
+        if (span < bestSpan || (span === bestSpan && open < bestOpenIdx)) {
+          bestSpan = span;
+          bestOpenIdx = open;
+          const start = map[open];
+          const end = map[close];
+          if (start && end) {
+            const range = document.createRange();
+            range.setStart(start.node, start.offset);
+            range.setEnd(end.node, end.offset + 1);
+            range.textZoomLevel = 99;
+            range._bookendOpenIdx = open;
+            range._bookendCloseIdx = close;
+            range._bookendContainer = container;
+            range._openNode = start.node;
+            range._openOffset = start.offset;
+            range._closeNode = end.node;
+            range._closeOffset = end.offset;
+            bestRange = range;
+          }
+        }
+      }
+    }
+    return bestRange;
+  }
+
+  // Bookend Zoom: snap to wider enclosing pair in ancestor chain
+  // Bookend zoom-out: walk ancestor chain to find the narrowest pair that fully encloses the current one
+  function snapToOuterBookend() {
+    if (!currentTargetElement || !(currentTargetElement instanceof Range)) return null;
+
+    let ancestor = currentTargetElement._bookendContainer || currentTargetElement.commonAncestorContainer;
+    if (ancestor.nodeType === Node.TEXT_NODE) ancestor = ancestor.parentElement;
+
+    while (ancestor && ancestor !== document.body) {
+      // Collect text and map from this ancestor
+      let fullText = "";
+      let map = [];
+      (function collect(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          for (let i = 0; i < node.nodeValue.length; i++) {
+            map.push({ node: node, offset: i });
+            fullText += node.nodeValue[i];
+          }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          for (let child of node.childNodes) collect(child);
+        }
+      })(ancestor);
+
+      // Find narrowest pair that encloses current range (DOM-based)
+      let bestRange = null;
+      let bestSpan = Infinity;
+
+      for (let char in BOOKEND_PAIRS) {
+        const closeChar = BOOKEND_PAIRS[char];
+        let searchFrom = 0;
+        while (true) {
+          let open = fullText.indexOf(char, searchFrom);
+          if (open === -1) break;
+          let close;
+          if (char === closeChar) {
+            // Symmetric pair: next occurrence is the close
+            close = fullText.indexOf(char, open + 1);
+          } else {
+            // Asymmetric pair: find matching close with nesting (handles (a (b) c))
+            close = -1;
+            let depth = 1;
+            for (let i = open + 1; i < fullText.length; i++) {
+              if (fullText[i] === char) depth++;
+              else if (fullText[i] === closeChar) depth--;
+              if (depth === 0) { close = i; break; }
+            }
+          }
+          if (close === -1) { searchFrom = open + 1; continue; }
+
+          const start = map[open];
+          const end = map[close];
+          if (start && end) {
+            // Build candidate range and check if it DOM-encloses currentTargetElement
+            const candidate = document.createRange();
+            candidate.setStart(start.node, start.offset);
+            candidate.setEnd(end.node, end.offset + 1);
+            if (candidate.compareBoundaryPoints(Range.START_TO_START, currentTargetElement) <= 0 &&
+                candidate.compareBoundaryPoints(Range.END_TO_END, currentTargetElement) >= 0) {
+              const span = close - open;
+              if (span < bestSpan) {
+                bestSpan = span;
+                const newRange = document.createRange();
+                newRange.setStart(start.node, start.offset);
+                newRange.setEnd(end.node, end.offset + 1);
+                newRange.textZoomLevel = 99;
+                newRange._bookendOpenIdx = open;
+                newRange._bookendCloseIdx = close;
+                newRange._bookendContainer = ancestor;
+                bestRange = newRange;
+              }
+            }
+          }
+          searchFrom = open + 1;
+        }
+      }
+
+      if (bestRange) return bestRange;
+      ancestor = ancestor.parentElement;
+    }
+    return null;
+  }
+
+  // Auto-trim helper: returns trimmed range if excludeDelimiters is on and range has matching bookends
+  // If excludeDelimiters is on, trim the outer bookend characters from a snapped range
+  function maybeTrim(range) {
+    if (!excludeDelimiters || !(range instanceof Range)) return range;
+    const text = range.toString();
+    if (text.length < 2) return range;
+    const first = text[0];
+    const last = text[text.length - 1];
+    const closeChar = BOOKEND_PAIRS[first];
+    if (!closeChar || closeChar !== last) return range;
+    const trimmed = document.createRange();
+    trimmed.setStart(range.startContainer, range.startOffset + 1);
+    trimmed.setEnd(range.endContainer, range.endOffset - 1);
+    trimmed.textZoomLevel = range.textZoomLevel;
+    trimmed._bookendOpenIdx = range._bookendOpenIdx;
+    trimmed._bookendCloseIdx = range._bookendCloseIdx;
+    trimmed._bookendContainer = range._bookendContainer;
+    trimmed._openNode = range._openNode;
+    trimmed._openOffset = range._openOffset;
+    trimmed._closeNode = range._closeNode;
+    trimmed._closeOffset = range._closeOffset;
+    trimmed._trimmed = true;
+    return trimmed;
+  }
+
+  // Trim surrounding bookend delimiters from the current selection
+  // Trim surrounding bookend delimiters from the current range and push to zoom history
+  function trimSurroundingBookends() {
+    if (!currentTargetElement || !(currentTargetElement instanceof Range)) return;
+    const text = currentTargetElement.toString();
+    if (text.length < 2) return;
+
+    const first = text[0];
+    const last = text[text.length - 1];
+    const closeChar = BOOKEND_PAIRS[first];
+    if (!closeChar || closeChar !== last) return;
+
+    // Trim the bookend characters
+    const newRange = document.createRange();
+    newRange.setStart(currentTargetElement.startContainer, currentTargetElement.startOffset + 1);
+    newRange.setEnd(currentTargetElement.endContainer, currentTargetElement.endOffset - 1);
+    newRange.textZoomLevel = currentTargetElement.textZoomLevel;
+    newRange._bookendOpenIdx = currentTargetElement._bookendOpenIdx;
+    newRange._bookendCloseIdx = currentTargetElement._bookendCloseIdx;
+    newRange._bookendContainer = currentTargetElement._bookendContainer;
+
+    zoomHistory.push(currentTargetElement);
+    currentTargetElement = newRange;
+    failedZoomInAttempt = false;
+    failedZoomOutAttempt = false;
+    updateUI();
+  }
+
+  // Handle zoom in/out: element zoom walks the DOM tree; bookend zoom snaps inner/outer pairs
   function handleZoom(direction) {
     if (!currentTargetElement) return;
+
+    // Bookend Zoom: bypass element zoom, operate on bookend pairs
+    if (zoomMode === 'BOOKEND_ZOOM') {
+      if (direction === 'in') {
+        if (failedZoomInAttempt) return;
+        const inner = snapToInnerBookend();
+        if (inner) {
+          if (settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(inner)) return;
+          zoomHistory.push(currentTargetElement);
+          currentTargetElement = maybeTrim(inner);
+          failedZoomInAttempt = false;
+          failedZoomOutAttempt = false;
+          updateUI();
+        } else {
+          failedZoomInAttempt = true;
+        }
+      } else { // zoom out
+        if (failedZoomOutAttempt) return;
+        const outer = snapToOuterBookend();
+        if (outer) {
+          if (settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(outer)) return;
+          // Pop the current from history if we're going to a parent pair
+          if (zoomHistory.length > 0) zoomHistory.pop();
+          currentTargetElement = maybeTrim(outer);
+          failedZoomInAttempt = false;
+          failedZoomOutAttempt = false;
+          updateUI();
+        } else {
+          failedZoomOutAttempt = true;
+        }
+      }
+      return;
+    }
 
     shadowHost.style.visibility = 'hidden';
     const mouseEl = getDeepElementFromPoint(lastMouseX, lastMouseY);
@@ -619,13 +1207,15 @@
         }
       }
 
+      // Zoom out from granular range: just pop zoomHistory
       if (currentTargetElement instanceof Range) {
-        let level = currentTargetElement.textZoomLevel;
-        if (level >= 2) {
-            let offset = currentTargetElement.startOffset;
-            currentTargetElement = getGranularRange(currentTargetElement.commonAncestorContainer, offset, level - 1) || currentTargetElement.commonAncestorContainer;
+        if (zoomHistory.length > 0) {
+          let prev = zoomHistory.pop();
+          if (!(settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(prev))) {
+            currentTargetElement = prev;
+          }
         } else {
-            currentTargetElement = currentTargetElement.commonAncestorContainer;
+          currentTargetElement = currentTargetElement.commonAncestorContainer;
         }
         updateUI();
         return;
@@ -667,38 +1257,30 @@
 
       if (currentTargetElement.nodeType === Node.TEXT_NODE || currentTargetElement instanceof Range) {
         let targetNode = currentTargetElement instanceof Range ? currentTargetElement.commonAncestorContainer : currentTargetElement;
-        let currentLevel = currentTargetElement instanceof Range ? currentTargetElement.textZoomLevel : 0;
-
-        if (currentLevel < 2) {
-            let offset = -1;
-            if (document.caretRangeFromPoint) {
-                const caret = document.caretRangeFromPoint(lastMouseX, lastMouseY);
-                if (caret && caret.startContainer === targetNode) {
-                    offset = caret.startOffset;
-                } else if (caret && caret.startContainer.nodeType === Node.TEXT_NODE && targetNode.contains && targetNode.contains(caret.startContainer)) {
+        let offset = -1;
+        if (document.caretRangeFromPoint) {
+            const caret = document.caretRangeFromPoint(lastMouseX, lastMouseY);
+            if (caret && caret.startContainer.nodeType === Node.TEXT_NODE) {
+                if (caret.startContainer === targetNode || (targetNode.contains && targetNode.contains(caret.startContainer))) {
                     targetNode = caret.startContainer;
                     offset = caret.startOffset;
                 }
             }
-            if (offset !== -1) {
-                const newRange = getGranularRange(targetNode, offset, currentLevel + 1);
-                if (newRange) {
-                    zoomHistory.push(currentTargetElement);
-                    currentTargetElement = newRange;
-                    updateUI();
-                    return;
-                }
-            } else if (currentTargetElement.nodeType === Node.TEXT_NODE) {
-                const newRange = getGranularRange(targetNode, Math.floor(targetNode.nodeValue.length / 2), currentLevel + 1);
-                if (newRange) {
-                   zoomHistory.push(currentTargetElement);
-                   currentTargetElement = newRange;
-                   updateUI();
-                   return;
-                }
+        }
+        if (offset === -1 && currentTargetElement.nodeType === Node.TEXT_NODE) {
+            targetNode = currentTargetElement;
+            offset = Math.floor(currentTargetElement.nodeValue.length / 2);
+        }
+        if (offset !== -1) {
+            const curRange = currentTargetElement instanceof Range ? currentTargetElement : null;
+            const newRange = getNextZoomRange(targetNode, offset, curRange);
+            if (newRange) {
+                zoomHistory.push(currentTargetElement);
+                currentTargetElement = newRange;
+                updateUI();
+                return;
             }
         }
-        // FIX: Prevent falling through to macro child node scanning if already maxed out at granular ranges
         return;
       }
 
@@ -749,6 +1331,7 @@
     }
   }
   
+  // Extract normalized text from an element, text node, or range (handles SELECT, INPUT, cloning)
   function getCleanText(element, showFullList = false) {
     if (!element) return "";
   
@@ -820,6 +1403,7 @@
   }
 
   // --- FORMATTING COMPILER ---
+  // Compile frozen + active selections into formatted clipboard output respecting line decorations
   function compileOutput() {
     let elements = [...frozenRanges];
     if (currentTargetElement && !elements.includes(currentTargetElement)) {
@@ -873,6 +1457,7 @@
     return formattedLines.join(settings.outputFormat === 'COMBINED' ? ' ' : '\n');
   }
 
+  // Copy compiled output to clipboard and exit selection mode with a confirmation toast
   function commitCopy() {
     const text = compileOutput();
     if (!text) return exitSelectionMode();
@@ -887,6 +1472,7 @@
   }
 
   // --- EVENT PIPELINE ---
+  // Global capture-phase event handler: dispatches all mouse, keyboard, and wheel events during selection
   function handleGlobalCapture(e) {
     if (!isSelectionMode) return;
 
@@ -905,8 +1491,22 @@
             return;
         } 
         
-        isPivotMode = !isPivotMode;
-        if (isPivotMode) snapToNearestBookend();
+        zoomMode = (zoomMode === 'ELEMENT_ZOOM') ? 'BOOKEND_ZOOM' : 'ELEMENT_ZOOM';
+        if (zoomMode === 'BOOKEND_ZOOM') {
+            excludeDelimiters = false;
+            savedUntrimmedRange = null;
+            const snapped = snapToNearestBookend();
+            if (snapped) {
+                if (settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(snapped)) return;
+                zoomHistory.push(currentTargetElement);
+                currentTargetElement = maybeTrim(snapped);
+                failedZoomInAttempt = false;
+                failedZoomOutAttempt = false;
+            }
+        } else {
+            failedZoomInAttempt = false;
+            failedZoomOutAttempt = false;
+        }
         updateUI();
         return;
     }
@@ -927,7 +1527,8 @@
       handleZoom(e.deltaY < 0 ? 'in' : 'out');
     } else if (e.type === 'mousedown') {
       if (e.button === 0) commitCopy();
-      else if (e.button === 2 && settings.trackingMode === 'MULTI_SNIP') {
+    } else if (e.type === 'contextmenu') {
+      if (settings.trackingMode === 'MULTI_SNIP') {
         if (currentTargetElement && !frozenRanges.includes(currentTargetElement)) {
           frozenRanges.push(currentTargetElement);
         }
@@ -943,8 +1544,22 @@
           saveSettings(); 
           updateUI();
         } else {
-          isPivotMode = !isPivotMode;
-          if (isPivotMode) snapToNearestBookend();
+          zoomMode = (zoomMode === 'ELEMENT_ZOOM') ? 'BOOKEND_ZOOM' : 'ELEMENT_ZOOM';
+          if (zoomMode === 'BOOKEND_ZOOM') {
+            excludeDelimiters = false;
+            savedUntrimmedRange = null;
+            const snapped = snapToNearestBookend();
+            if (snapped) {
+              if (settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(snapped)) return;
+              zoomHistory.push(currentTargetElement);
+              currentTargetElement = maybeTrim(snapped);
+              failedZoomInAttempt = false;
+              failedZoomOutAttempt = false;
+            }
+          } else {
+            failedZoomInAttempt = false;
+            failedZoomOutAttempt = false;
+          }
           updateUI();
         }
       } else if (['Escape', 'Backspace', 'Delete'].includes(key)) {
@@ -981,20 +1596,122 @@
           }
           saveSettings(); 
           updateUI();
+      } else if (key.toLowerCase() === 'x') {
+          excludeDelimiters = !excludeDelimiters;
+          if (currentTargetElement instanceof Range) {
+            if (excludeDelimiters) {
+              savedUntrimmedRange = currentTargetElement;
+              const trimmed = maybeTrim(currentTargetElement);
+              if (trimmed === currentTargetElement) {
+                // No bookends to trim — expand to enclosing pair then trim it
+                const expanded = findEnclosingPair();
+                if (expanded) {
+                  savedUntrimmedRange = expanded.cloneRange();
+                  savedUntrimmedRange.textZoomLevel = 99;
+                  if (expanded._openNode) {
+                    savedUntrimmedRange._openNode = expanded._openNode;
+                    savedUntrimmedRange._openOffset = expanded._openOffset;
+                    savedUntrimmedRange._closeNode = expanded._closeNode;
+                    savedUntrimmedRange._closeOffset = expanded._closeOffset;
+                  }
+                  currentTargetElement = maybeTrim(expanded);
+                }
+              } else {
+                currentTargetElement = trimmed;
+              }
+            } else {
+              if (savedUntrimmedRange) {
+                currentTargetElement = savedUntrimmedRange;
+                savedUntrimmedRange = null;
+              } else {
+                const restored = findEnclosingPair();
+                if (restored && !(settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(restored))) {
+                  currentTargetElement = restored;
+                }
+              }
+            }
+          } else if (currentTargetElement && currentTargetElement.nodeType === Node.ELEMENT_NODE) {
+            // First try lightweight: search for bookend pair in the text node at cursor
+            const foundRange = findEnclosingPair();
+            if (foundRange && foundRange._openNode && foundRange._closeNode) {
+              zoomHistory.push(currentTargetElement);
+              if (excludeDelimiters) {
+                savedUntrimmedRange = foundRange.cloneRange();
+                savedUntrimmedRange.textZoomLevel = 99;
+                savedUntrimmedRange._openNode = foundRange._openNode;
+                savedUntrimmedRange._openOffset = foundRange._openOffset;
+                savedUntrimmedRange._closeNode = foundRange._closeNode;
+                savedUntrimmedRange._closeOffset = foundRange._closeOffset;
+                savedUntrimmedRange._bookendOpenIdx = foundRange._bookendOpenIdx;
+                savedUntrimmedRange._bookendCloseIdx = foundRange._bookendCloseIdx;
+                savedUntrimmedRange._bookendContainer = foundRange._bookendContainer;
+                savedUntrimmedRange._bookendEl = foundRange._bookendEl;
+                currentTargetElement = maybeTrim(foundRange);
+              } else {
+                currentTargetElement = foundRange;
+              }
+            } else {
+              // Fallback: walk up ancestors for elements fully wrapped in bookends (e.g. [edit] span)
+              let bookendEl = currentTargetElement;
+              while (bookendEl && bookendEl !== document.body) {
+                const text = (bookendEl.textContent || '').trim();
+                const first = text[0];
+                const last = text[text.length - 1];
+                const closeChar = BOOKEND_PAIRS[first];
+                if (closeChar && closeChar === last && text.length > 2) {
+                  const range = elementToRange(bookendEl);
+                  if (range) {
+                    range._bookendOpenIdx = 0;
+                    range._bookendCloseIdx = text.length - 1;
+                    range._bookendContainer = bookendEl;
+                    range.textZoomLevel = 99;
+                    range._bookendEl = bookendEl;
+                    range._openNode = range.startContainer;
+                    range._openOffset = range.startOffset;
+                    range._closeNode = range.endContainer;
+                    range._closeOffset = range.endOffset - 1;
+                    zoomHistory.push(bookendEl);
+                    if (excludeDelimiters) {
+                      savedUntrimmedRange = range.cloneRange();
+                      savedUntrimmedRange.textZoomLevel = 99;
+                      savedUntrimmedRange._openNode = range._openNode;
+                      savedUntrimmedRange._openOffset = range._openOffset;
+                      savedUntrimmedRange._closeNode = range._closeNode;
+                      savedUntrimmedRange._closeOffset = range._closeOffset;
+                      savedUntrimmedRange._bookendOpenIdx = range._bookendOpenIdx;
+                      savedUntrimmedRange._bookendCloseIdx = range._bookendCloseIdx;
+                      savedUntrimmedRange._bookendContainer = range._bookendContainer;
+                      savedUntrimmedRange._bookendEl = range._bookendEl;
+                      range._trimmed = true;
+                    }
+                    currentTargetElement = range;
+                  }
+                  break;
+                }
+                bookendEl = bookendEl.parentElement;
+              }
+            }
+          }
+          updateUI();
       }
     }
   }
 
   // --- LIFECYCLE ---
+  // Load persisted settings from chrome.storage.local, normalizing legacy tracking mode values
   function loadSettings(cb) {
     try {
       chrome.storage.local.get(settings, (res) => {
         if (res) Object.assign(settings, res);
+        // Normalize legacy trackingMode values from older popup versions
+        if (settings.trackingMode === 'Multi-snip') settings.trackingMode = 'MULTI_SNIP';
+        if (settings.trackingMode === 'Single-snip') settings.trackingMode = 'SINGLE_SNIP';
         if (cb) cb();
       });
     } catch (e) { if (cb) cb(); }
   }
 
+  // Persist current settings to chrome.storage.local and notify the popup
   function saveSettings() {
     try {
       chrome.storage.local.set(settings);
@@ -1004,9 +1721,14 @@
 
   const captureEvents = ['mousedown', 'mouseup', 'click', 'contextmenu', 'mousemove', 'keydown', 'wheel'];
   
+  // Activate selection mode: inject shadow DOM, register capture listeners, evaluate initial position
   function startSelectionMode(x, y) {
     isSelectionMode = true;
-	isPivotMode = false;
+	zoomMode = 'ELEMENT_ZOOM';
+    failedZoomInAttempt = false;
+    failedZoomOutAttempt = false;
+    excludeDelimiters = false;
+    savedUntrimmedRange = null;
     frozenRanges = [];
     currentTargetElement = null;
     zoomHistory = [];
@@ -1019,6 +1741,7 @@
     loadSettings(() => evaluateMouseCoords(x, y));
   }
 
+  // Deactivate selection mode: remove listeners, destroy shadow DOM, restore page state
   function exitSelectionMode() {
     isSelectionMode = false;
     document.body.style.userSelect = '';
