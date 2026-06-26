@@ -10,6 +10,7 @@
   let failedZoomOutAttempt = false;
   let excludeDelimiters = false;   // X toggles — auto-trim bookend chars after every snap
   let savedUntrimmedRange = null;   // Saved original Range for X toggle restore
+  let pendingInnerRange = null;     // Inner range to trim back to after a zoom-out-to-container include
   
   // Track global mouse position for smart-zooming
   let lastMouseX = 0;
@@ -356,6 +357,34 @@
     return snapToNearestBookend();
   }
 
+  // Given an enclosing-pair range for the INCLUDE state, return what to select:
+  // - normally the range itself (renderable bookend chars, e.g. real quotes)
+  // - if the opening bookend char is unrenderable (e.g. display:none .mw-editsection brackets),
+  //   the ancestor element whose text equals the pair (renders the visible bookends). In that
+  //   case sets pendingInnerRange so the next exclude can trim back to the inner text.
+  function includeBookendTarget(foundRange) {
+    pendingInnerRange = null;
+    let unrenderable = false;
+    try {
+      const r = document.createRange();
+      r.setStart(foundRange._openNode, foundRange._openOffset);
+      r.setEnd(foundRange._openNode, foundRange._openOffset + 1);
+      unrenderable = r.getBoundingClientRect().width === 0;
+    } catch (e) {}
+    if (!unrenderable) return foundRange;
+    const pairText = foundRange.toString().trim();
+    let anc = foundRange._bookendContainer ||
+      (foundRange._openNode && foundRange._openNode.parentElement);
+    while (anc && anc !== document.body && (anc.textContent || '').trim() !== pairText) {
+      anc = anc.parentElement;
+    }
+    if (anc && anc !== document.body && (anc.textContent || '').trim() === pairText) {
+      pendingInnerRange = foundRange;
+      return anc;
+    }
+    return foundRange;
+  }
+
   // --- SHADOW DOM INITIALIZATION ---
   // Create the shadow DOM host, overlay container, and preview toast; inject into the page
   function initShadowDOM() {
@@ -386,6 +415,15 @@
     shadowRoot.appendChild(toast);
 
     document.documentElement.appendChild(shadowHost);
+
+    // Override user-select:none site-wide so blocked text can be selected/measured during
+    // selection mode. CSS-only override (no DOM mutation); removed on teardown.
+    if (!document.getElementById('copycat-userselect')) {
+      const us = document.createElement('style');
+      us.id = 'copycat-userselect';
+      us.textContent = `*, *::before, *::after { user-select: text !important; -webkit-user-select: text !important; }`;
+      document.documentElement.appendChild(us);
+    }
   }
 
   // Remove the shadow DOM host from the page and null out references
@@ -395,6 +433,8 @@
       shadowHost = null;
       shadowRoot = null;
     }
+    const us = document.getElementById('copycat-userselect');
+    if (us) us.remove();
   }
 
   // --- GEOMETRIC MAPPING PROTOCOL ---
@@ -403,43 +443,11 @@
     if (!target) return [];
     
     if (target instanceof Range) {
-      // For bookend ranges with character positions, compute rect from open/close chars
-      if (target._openNode && target._closeNode && target._openNode.nodeType === Node.TEXT_NODE && target._closeNode.nodeType === Node.TEXT_NODE) {
-        try {
-          const openR = document.createRange();
-          openR.setStart(target._openNode, target._openOffset);
-          openR.setEnd(target._openNode, target._openOffset + 1);
-          const openRect = openR.getBoundingClientRect();
-          const closeR = document.createRange();
-          closeR.setStart(target._closeNode, target._closeOffset);
-          closeR.setEnd(target._closeNode, target._closeOffset + 1);
-          const closeRect = closeR.getBoundingClientRect();
-          if (openRect.width > 0 && closeRect.width > 0) {
-            const top = Math.min(openRect.top, closeRect.top);
-            const bottom = Math.max(openRect.bottom, closeRect.bottom);
-            let left, width;
-            if (target._trimmed) {
-              left = openRect.right;
-              width = closeRect.left - openRect.right;
-            } else {
-              left = openRect.left;
-              width = closeRect.right - openRect.left;
-            }
-            if (width > 0 && (bottom - top) > 0) {
-              return [{ top, left, width, height: bottom - top }];
-            }
-          }
-        } catch (e) { /* fall through */ }
-      }
-      // Fallback for pseudo-element bookends: use element rect for full, range rect for trimmed
-      if (target._bookendEl) {
-        if (target._trimmed) {
-          const rects = Array.from(target.getClientRects());
-          if (rects.length > 0) return rects;
-        }
-        const rect = target._bookendEl.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) return [rect];
-      }
+      // getClientRects() is tight to the range's actual selectable boundaries and excludes
+      // ::after generated content (e.g. .external link icons). Note: bookend chars that are
+      // display:none (e.g. MediaWiki's .mw-editsection [ ] brackets, rendered via CSS) have no
+      // layout box, so they can't be drawn around — include/exclude then look the same, which is
+      // correct since there is nothing visible to enclose.
       return Array.from(target.getClientRects());
     }
     
@@ -473,7 +481,10 @@
       const r = sorted[i];
       // Merge rects that overlap vertically (same visual line), regardless of horizontal gap
       if (r.top < current.bottom && r.bottom > current.top) {
-        // Same line — merge horizontally
+        // Same line — expand to the union (must update left/top too, not just right/bottom,
+        // since rects can sort out of left order when vertical-align differs)
+        current.left = Math.min(current.left, r.left);
+        current.top = Math.min(current.top, r.top);
         current.right = Math.max(current.right, r.right);
         current.bottom = Math.max(current.bottom, r.bottom);
       } else {
@@ -1626,30 +1637,29 @@
               } else {
                 const restored = findEnclosingPair();
                 if (restored && !(settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(restored))) {
-                  currentTargetElement = restored;
+                  // Zoom out to container when bookends are unrenderable (e.g. [edit])
+                  currentTargetElement = includeBookendTarget(restored);
                 }
               }
             }
-          } else if (currentTargetElement && currentTargetElement.nodeType === Node.ELEMENT_NODE) {
-            // First try lightweight: search for bookend pair in the text node at cursor
+          } else if (currentTargetElement && excludeDelimiters && pendingInnerRange &&
+                     currentTargetElement.nodeType === Node.ELEMENT_NODE &&
+                     (currentTargetElement.textContent || '').trim() === pendingInnerRange.toString().trim()) {
+            // We zoomed out to a container element to show unrenderable bookends (e.g. [edit]).
+            // This x press trims back to the inner text held in pendingInnerRange.
+            const innerSrc = pendingInnerRange;
+            pendingInnerRange = null;
+            currentTargetElement = maybeTrim(innerSrc);
+          } else if (currentTargetElement && (currentTargetElement.nodeType === Node.ELEMENT_NODE || currentTargetElement.nodeType === Node.TEXT_NODE)) {
+            // From a bare element or text node: search for the enclosing bookend pair at cursor
             const foundRange = findEnclosingPair();
             if (foundRange && foundRange._openNode && foundRange._closeNode) {
               zoomHistory.push(currentTargetElement);
-              if (excludeDelimiters) {
-                savedUntrimmedRange = foundRange.cloneRange();
-                savedUntrimmedRange.textZoomLevel = 99;
-                savedUntrimmedRange._openNode = foundRange._openNode;
-                savedUntrimmedRange._openOffset = foundRange._openOffset;
-                savedUntrimmedRange._closeNode = foundRange._closeNode;
-                savedUntrimmedRange._closeOffset = foundRange._closeOffset;
-                savedUntrimmedRange._bookendOpenIdx = foundRange._bookendOpenIdx;
-                savedUntrimmedRange._bookendCloseIdx = foundRange._bookendCloseIdx;
-                savedUntrimmedRange._bookendContainer = foundRange._bookendContainer;
-                savedUntrimmedRange._bookendEl = foundRange._bookendEl;
-                currentTargetElement = maybeTrim(foundRange);
-              } else {
-                currentTargetElement = foundRange;
-              }
+              // Coming from a bare element, the bookend chars are currently excluded, so the
+              // first x press should INCLUDE them (show the full pair). Force include here.
+              excludeDelimiters = false;
+              savedUntrimmedRange = null;
+              currentTargetElement = includeBookendTarget(foundRange);
             } else {
               // Fallback: walk up ancestors for elements fully wrapped in bookends (e.g. [edit] span)
               let bookendEl = currentTargetElement;
@@ -1729,6 +1739,7 @@
     failedZoomOutAttempt = false;
     excludeDelimiters = false;
     savedUntrimmedRange = null;
+    pendingInnerRange = null;
     frozenRanges = [];
     currentTargetElement = null;
     zoomHistory = [];
