@@ -15,6 +15,11 @@
   // Track global mouse position for smart-zooming
   let lastMouseX = 0;
   let lastMouseY = 0;
+  let rafPending = 0; // requestAnimationFrame id while a mousemove evaluation is queued
+
+  // Bookend Zoom hover-scan limits and cache (see snapToNearestBookend)
+  const MAX_BOOKEND_SCAN_CHARS = 5000;
+  let bookendScanCache = null; // { container, textLength, fullText, map }
 
   // Zoom history traversal stack
   let zoomHistory = [];
@@ -187,10 +192,14 @@
       return null;
     }
     
-    // Walk up to find an ancestor that contains bookend pairs (handles multi-element mw-editsection)
+    // Walk up to find an ancestor that contains bookend pairs (handles multi-element mw-editsection).
+    // Stop at MAX_BOOKEND_SCAN_CHARS so a hover never maps most of a long page; pairs wider than
+    // that are still reachable via snapToOuterBookend (zoom out).
     let searchContainer = container;
+    let exceededCap = false;
     while (searchContainer && searchContainer !== document.body) {
       const text = searchContainer.textContent || '';
+      if (text.length > MAX_BOOKEND_SCAN_CHARS) { exceededCap = true; break; }
       let hasPair = false;
       for (let char in BOOKEND_PAIRS) {
         const closeChar = BOOKEND_PAIRS[char];
@@ -203,25 +212,37 @@
       if (hasPair) break;
       searchContainer = searchContainer.parentElement;
     }
+    if (exceededCap) return null; // no pair within the scan limit
     container = (searchContainer && searchContainer !== document.body) ? searchContainer : container;
-    
-    // 2. Map all text nodes to a flat array to handle multi-node selections
-    let fullText = "";
-    let map = [];
 
-    function collect(node) {
-        if (node.nodeType === Node.TEXT_NODE) {
-            for (let i = 0; i < node.nodeValue.length; i++) {
-                map.push({ node: node, offset: i });
-                fullText += node.nodeValue[i];
-            }
-        } else if (node.nodeType === Node.ELEMENT_NODE) {
-            for (let child of node.childNodes) {
-                collect(child);
-            }
-        }
+    // 2. Map all text nodes to a flat array to handle multi-node selections.
+    // Reuse the cached map while the container is unchanged (same element, still attached, same
+    // text length — a cheap check that catches most React re-renders).
+    let fullText;
+    let map;
+    const containerTextLength = (container.textContent || '').length;
+    if (bookendScanCache && bookendScanCache.container === container &&
+        container.isConnected && bookendScanCache.textLength === containerTextLength) {
+      fullText = bookendScanCache.fullText;
+      map = bookendScanCache.map;
+    } else {
+      fullText = "";
+      map = [];
+      const collect = (node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+              for (let i = 0; i < node.nodeValue.length; i++) {
+                  map.push({ node: node, offset: i });
+                  fullText += node.nodeValue[i];
+              }
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+              for (let child of node.childNodes) {
+                  collect(child);
+              }
+          }
+      };
+      collect(container);
+      bookendScanCache = { container, textLength: containerTextLength, fullText, map };
     }
-    collect(container);
 
     // 3. Find current cursor index in our flat map — prefer mouse position
     let cursorIdx = -1;
@@ -359,7 +380,7 @@
 
   // Given an enclosing-pair range for the INCLUDE state, return what to select:
   // - normally the range itself (renderable bookend chars, e.g. real quotes)
-  // - if the opening bookend char is unrenderable (e.g. display:none .mw-editsection brackets),
+  // - if the opening bookend char has no layout box (e.g. a display:none bracket),
   //   the ancestor element whose text equals the pair (renders the visible bookends). In that
   //   case sets pendingInnerRange so the next exclude can trim back to the inner text.
   function includeBookendTarget(foundRange) {
@@ -444,10 +465,9 @@
     
     if (target instanceof Range) {
       // getClientRects() is tight to the range's actual selectable boundaries and excludes
-      // ::after generated content (e.g. .external link icons). Note: bookend chars that are
-      // display:none (e.g. MediaWiki's .mw-editsection [ ] brackets, rendered via CSS) have no
-      // layout box, so they can't be drawn around — include/exclude then look the same, which is
-      // correct since there is nothing visible to enclose.
+      // ::after generated content (e.g. .external link icons). Note: a bookend char with no
+      // layout box (e.g. display:none) can't be drawn around, so include/exclude then look the
+      // same, which is correct since there is nothing visible to enclose.
       return Array.from(target.getClientRects());
     }
     
@@ -1525,7 +1545,13 @@
     if (e.type === 'mousemove') {
         lastMouseX = e.clientX;
         lastMouseY = e.clientY;
-        evaluateMouseCoords(e.clientX, e.clientY);
+        // Evaluate at most once per frame; mice can fire hundreds of moves per second
+        if (!rafPending) {
+          rafPending = requestAnimationFrame(() => {
+            rafPending = 0;
+            if (isSelectionMode) evaluateMouseCoords(lastMouseX, lastMouseY);
+          });
+        }
         return;
     }
 
@@ -1743,11 +1769,9 @@
     frozenRanges = [];
     currentTargetElement = null;
     zoomHistory = [];
+    bookendScanCache = null;
     initShadowDOM();
-    
-    document.body.style.userSelect = 'none';
-    document.body.style.webkitUserSelect = 'none';
-    
+
     captureEvents.forEach(evt => window.addEventListener(evt, handleGlobalCapture, { capture: true, passive: false }));
     loadSettings(() => evaluateMouseCoords(x, y));
   }
@@ -1755,8 +1779,8 @@
   // Deactivate selection mode: remove listeners, destroy shadow DOM, restore page state
   function exitSelectionMode() {
     isSelectionMode = false;
-    document.body.style.userSelect = '';
-    document.body.style.webkitUserSelect = '';
+    if (rafPending) { cancelAnimationFrame(rafPending); rafPending = 0; }
+    bookendScanCache = null;
     captureEvents.forEach(evt => window.removeEventListener(evt, handleGlobalCapture, { capture: true, passive: false }));
     destroyShadowDOM();
   }
