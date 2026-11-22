@@ -16,6 +16,7 @@
   let lastMouseX = 0;
   let lastMouseY = 0;
   let rafPending = 0; // requestAnimationFrame id while a mousemove evaluation is queued
+  let zoomLocked = false; // set after wheel/arrow zoom: hold the selection while the mouse stays in it
 
   // Bookend Zoom hover-scan limits and cache (see snapToNearestBookend)
   const MAX_BOOKEND_SCAN_CHARS = 5000;
@@ -490,6 +491,39 @@
     return [];
   }
 
+  // Rects to paint for a target (drawing only; hit-testing keeps using getTargetRects).
+  // Elements with visible text are painted on their text lines, not their whole box, so the
+  // highlight sits on the characters like a marker. Text-less elements (img, input, svg) use
+  // their box.
+  function getHighlightRects(target) {
+    if (!target) return [];
+    if (target instanceof Range || target.nodeType === Node.TEXT_NODE) return getTargetRects(target);
+    if (target.nodeType === Node.ELEMENT_NODE) {
+      const tag = target.tagName.toUpperCase();
+      if (!['INPUT', 'TEXTAREA', 'SELECT', 'IMG', 'SVG', 'VIDEO', 'CANVAS'].includes(tag) &&
+          (target.textContent || '').trim()) {
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
+        if (rects.length) return rects;
+      }
+    }
+    return getTargetRects(target);
+  }
+
+  const HIGHLIGHT_ALPHA = 0.2;     // highlighter fill opacity for all selections
+  const FROZEN_COLOR = '#10b981';  // Multi-snip frozen selections (green)
+
+  // Build one highlighter block (no border, translucent fill, 1px vertical bleed like a marker)
+  function makeHighlightBox(rect, color) {
+    const box = document.createElement('div');
+    box.style.cssText = `position: absolute; top: ${rect.top - 1}px; left: ${rect.left}px; ` +
+      `width: ${rect.width}px; height: ${rect.height + 2}px; ` +
+      `background-color: ${hexToRgba(color, HIGHLIGHT_ALPHA)}; border: none; border-radius: 2px; ` +
+      `pointer-events: none; transition: all 0.05s ease-out;`;
+    return box;
+  }
+
   // Merge rects on the same line to prevent stacked opacity from overlapping inline segments
   // Merge rects that share the same vertical line to avoid doubled opacity on overlapping inline fragments
   function mergeRects(rects) {
@@ -595,49 +629,16 @@
     const themeColor = getActiveThemeColor();
 
     frozenRanges.forEach(el => {
-      let rects = mergeRects(getTargetRects(el));
-      Array.from(rects).forEach(rect => {
+      mergeRects(getHighlightRects(el)).forEach(rect => {
         if (rect.width === 0 || rect.height === 0) return;
-          const box = document.createElement('div');
-          box.className = 'highlight-active';
-          box.style.cssText = `top: ${rect.top}px; left: ${rect.left}px; width: ${rect.width}px; height: ${rect.height}px; background-color: ${hexToRgba('#10b981', 0.2)}; border: 2px dashed #10b981; position: absolute; pointer-events: none;`;
-          overlayContainer.appendChild(box);
+        overlayContainer.appendChild(makeHighlightBox(rect, FROZEN_COLOR));
       });
     });
 
     if (currentTargetElement) {
-      let rects = getTargetRects(currentTargetElement);
-      rects = mergeRects(rects);
-      const isSmall = currentTargetElement instanceof Range || currentTargetElement.nodeType === Node.TEXT_NODE;
-      rects.forEach(rect => {
+      mergeRects(getHighlightRects(currentTargetElement)).forEach(rect => {
         if (rect.width === 0 || rect.height === 0) return;
-        const box = document.createElement('div');
-        box.style.cssText = isSmall ? `
-          position: absolute;
-          top: ${rect.top}px;
-          left: ${rect.left}px;
-          width: ${rect.width}px;
-          height: ${rect.height}px;
-          border-top: 2px dashed ${themeColor};
-          border-bottom: 2px dashed ${themeColor};
-          border-left: 2px dashed ${themeColor};
-          border-right: 2px dashed ${themeColor};
-          pointer-events: none;
-          transition: all 0.05s ease-out;
-        ` : `
-          position: absolute;
-          top: ${rect.top}px;
-          left: ${rect.left}px;
-          width: ${rect.width}px;
-          height: ${rect.height}px;
-          background-color: ${hexToRgba(themeColor, 0.3)};
-          border: 2px dashed ${themeColor};
-          border-radius: 4px;
-          box-sizing: border-box;
-          pointer-events: none;
-          transition: all 0.05s ease-out;
-        `;
-        overlayContainer.appendChild(box);
+        overlayContainer.appendChild(makeHighlightBox(rect, themeColor));
       });
     }
 
@@ -842,6 +843,13 @@
 
     if (!el) return;
 
+    // After an explicit zoom, keep the selection (and its zoom level) while the mouse stays inside
+    // it, so tiny hand jitter doesn't undo the zoom. Leaving it releases the lock.
+    if (zoomLocked) {
+      if (currentTargetElement && isPointInTarget(currentTargetElement, clientX, clientY, 2)) return;
+      zoomLocked = false;
+    }
+
     // Bookend Zoom: follow mouse, re-snap to nearest bookend pair at cursor
     if (zoomMode === 'BOOKEND_ZOOM') {
         const snapped = snapToNearestBookend();
@@ -933,6 +941,17 @@
     }
     current = (current && current !== document.body) ? current : el;
     return getTightestTextElement(current, clientX, clientY);
+  }
+
+  // True if (x, y) is within `tolerance` px of any rect of the target (Element, Text node, Range)
+  function isPointInTarget(target, x, y, tolerance) {
+    let rects;
+    try { rects = getTargetRects(target); } catch (e) { return false; }
+    for (const r of rects) {
+      if (x >= r.left - tolerance && x <= r.right + tolerance &&
+          y >= r.top - tolerance && y <= r.bottom + tolerance) return true;
+    }
+    return false;
   }
 
   // True if Range `outer` fully contains Range `inner` (false on detached/foreign nodes)
@@ -1219,7 +1238,14 @@
   }
 
   // Handle zoom in/out: element zoom walks the DOM tree; bookend zoom snaps inner/outer pairs
+  // Zoom in/out (wheel, ArrowUp/ArrowDown); locks the result against mouse jitter if it changed
   function handleZoom(direction) {
+    const before = currentTargetElement;
+    handleZoomInner(direction);
+    if (currentTargetElement && currentTargetElement !== before) zoomLocked = true;
+  }
+
+  function handleZoomInner(direction) {
     if (!currentTargetElement) return;
 
     // Bookend Zoom: bypass element zoom, operate on bookend pairs
@@ -1556,6 +1582,7 @@
         } 
         
         zoomMode = (zoomMode === 'ELEMENT_ZOOM') ? 'BOOKEND_ZOOM' : 'ELEMENT_ZOOM';
+        zoomLocked = false;
         if (zoomMode === 'BOOKEND_ZOOM') {
             excludeDelimiters = false;
             savedUntrimmedRange = null;
@@ -1602,6 +1629,9 @@
         if (currentTargetElement && !frozenRanges.includes(currentTargetElement)) {
           frozenRanges.push(currentTargetElement);
         }
+        // The locked selection was just frozen; release the zoom lock so re-evaluation can move
+        // the active selection off it (and redraw)
+        zoomLocked = false;
         evaluateMouseCoords(e.clientX, e.clientY);
       }
     } else if (e.type === 'keydown') {
@@ -1615,6 +1645,7 @@
           updateUI();
         } else {
           zoomMode = (zoomMode === 'ELEMENT_ZOOM') ? 'BOOKEND_ZOOM' : 'ELEMENT_ZOOM';
+          zoomLocked = false;
           if (zoomMode === 'BOOKEND_ZOOM') {
             excludeDelimiters = false;
             savedUntrimmedRange = null;
@@ -1808,6 +1839,9 @@
     currentTargetElement = null;
     zoomHistory = [];
     bookendScanCache = null;
+    zoomLocked = false;
+    lastMouseX = x;           // so the first zoom targets the word under the mouse, not 0,0
+    lastMouseY = y;
     initShadowDOM();
 
     captureEvents.forEach(evt => window.addEventListener(evt, handleGlobalCapture, { capture: true, passive: false }));
@@ -1819,6 +1853,7 @@
     isSelectionMode = false;
     if (rafPending) { cancelAnimationFrame(rafPending); rafPending = 0; }
     bookendScanCache = null;
+    zoomLocked = false;
     captureEvents.forEach(evt => window.removeEventListener(evt, handleGlobalCapture, { capture: true, passive: false }));
     destroyShadowDOM();
   }
