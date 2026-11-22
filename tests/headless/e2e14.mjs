@@ -78,14 +78,16 @@ const pp = await browser.newPage(); await pp.setViewport({ width: 372, height: 9
 await sw.evaluate(() => chrome.storage.local.set({ outputFormat: 'SPLIT', lineDecoration: 'QUOTED_COMMA', trackingMode: 'MULTI_SNIP' }));
 await pp.goto(`chrome-extension://${extId}/popup.html`); await sleep(400);
 check('popup: no current-style row at the top', !(await pp.$('#mode-display')), null);
-const multi = await pp.$eval('input[value=MULTI_SNIP]', e => e.checked);
-check('popup snipping toggle reflects Multi-snip', multi === true, multi);
+check('popup: no Single/Multi-snip mode row (Shift+Space is in the hotkeys)', !(await pp.$('input[name=trackingMode]')), null);
 const icons = await pp.$$eval('[data-style-icon] svg', els => els.length);
 check('popup legend uses SVG style icons (7) + 6 quote variants', icons === 7 && (await pp.$$eval('#quote-variants svg', els => els.length)) === 6, icons);
 const keys = await pp.$$eval('dl.keys dd', els => els.map(e => e.textContent));
-check('hotkey rows: Shift+Space and Q / Shift+Q', keys.includes('Switch between single-snip or multi-snip modes') && keys.includes('Cycle style between quote, bullet or number'), keys);
+check('hotkey rows: Shift+Space present, Q / Shift+Q moved out of the hotkeys', keys.includes('Switch between single-snip or multi-snip modes') && !keys.some(k => /Cycle style/.test(k)), keys);
+const dagger = await pp.$$eval('.footnote', els => els.map(e => e.textContent.replace(/\s+/g, ' ').trim()));
+check('† on Quotes and Quotes + commas; † note explains Q with the 6 variants', (await pp.$$eval('.style-grid li', els => els.filter(e => e.textContent.trim().endsWith('†')).length)) === 2
+  && dagger.some(t => t.startsWith('†Press Q / Shift+Q to cycle between quote, parenthesis and bracket styles')), dagger);
 const swatches = await pp.$$eval('#highlight-swatches .swatch', els => els.map(e => [e.title, e.getAttribute('aria-checked')]));
-check('highlight swatches: red, green, blue (default, checked), yellow', JSON.stringify(swatches) === JSON.stringify([['Red', 'false'], ['Green', 'false'], ['Blue', 'true'], ['Yellow', 'false']]), swatches);
+check('highlight swatches: red, green, blue (default, checked), yellow, cyan, magenta', JSON.stringify(swatches) === JSON.stringify([['Red', 'false'], ['Green', 'false'], ['Blue', 'true'], ['Yellow', 'false'], ['Cyan', 'false'], ['Magenta', 'false']]), swatches);
 await pp.click('#highlight-swatches .swatch[title=Yellow]'); await sleep(300);
 const saved = await sw0.evaluate(async () => (await chrome.storage.local.get('highlightColor')).highlightColor);
 check('clicking a swatch saves the highlight color', saved === '#FFFF00', saved);

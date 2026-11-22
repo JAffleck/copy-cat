@@ -37,6 +37,7 @@ Override browsers with `CHROME_SHELL=/path/to/chrome-headless-shell` and
 | `uswds-address.mjs` | Real site (designsystem.digital.gov address form): save a group, fill it via shortcut / row click / Fill button (run by hand) |
 | `e2e13.mjs` | Real extension: side-panel group editor (Edit, Copy one value, Remove one field, fill after edit) |
 | `e2e14.mjs` | Real extension: Group N names, rename/delete icons, history delete icon, panel toggle route, popup labels; screenshots `out/popup.png`, `out/preview.png` (plan 16 popup checks too) |
+| `e2e17.mjs` | Real extension: highlight follows the popup color, incl. changes while selecting; the page never overwrites it (plan 17) |
 | `e2e12.mjs` | Real extension: Alt+V / Alt+Shift+V, Insert into an unfocused page and into a tab opened before install, preview Fill button |
 
 `hook.js` is a test-only helper that exposes internal selection state (`window.__cc()`).

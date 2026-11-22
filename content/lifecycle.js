@@ -17,12 +17,30 @@
   }
 
   // Persist current settings to chrome.storage.local and notify the popup
+  // Settings the popup owns: the page never writes them (it would put back the value it loaded
+  // when selection started, undoing a change made in the popup meanwhile)
+  const POPUP_OWNED_SETTINGS = ['highlightColor'];
+
   function saveSettings() {
     try {
-      chrome.storage.local.set(settings);
-      chrome.runtime.sendMessage({ type: 'SETTINGS_UPDATED', data: settings }).catch(() => {});
+      const own = Object.assign({}, settings);
+      POPUP_OWNED_SETTINGS.forEach(k => delete own[k]);
+      chrome.storage.local.set(own);
+      chrome.runtime.sendMessage({ type: 'SETTINGS_UPDATED', data: own }).catch(() => {});
     } catch (e) {}
   }
+
+  // A color picked in the popup while this page is selecting applies right away
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local' || !extensionAlive()) return;
+      let changed = false;
+      for (const k of POPUP_OWNED_SETTINGS) {
+        if (changes[k]) { settings[k] = changes[k].newValue; changed = true; }
+      }
+      if (changed && isSelectionMode) updateUI();
+    });
+  } catch (e) { /* not running as an extension (tests) */ }
 
   const captureEvents = ['mousedown', 'mouseup', 'click', 'contextmenu', 'mousemove', 'keydown', 'wheel'];
   

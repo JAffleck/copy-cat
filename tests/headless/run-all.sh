@@ -36,6 +36,7 @@ if [ -n "$FULL_EXE" ]; then
   run 'end-to-end Insert/Alt+V (plan 12)' "$FULL_EXE" e2e12.mjs
   run 'end-to-end group editor (plan 13)' "$FULL_EXE" e2e13.mjs
   run 'end-to-end names/icons/panel/popup (14)' "$FULL_EXE" e2e14.mjs
+  run 'end-to-end highlight color (17)'   "$FULL_EXE" e2e17.mjs
 else
   echo 'end-to-end: skipped (no Chrome for Testing; set CHROME_FULL)'
 fi

@@ -108,7 +108,8 @@
 
   const HIGHLIGHT_ALPHA = 0.2;     // active selection fill opacity
   const FROZEN_ALPHA = 0.4;        // Multi-snip frozen selections: same color, stronger
-  const HIGHLIGHT_COLORS = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00'];   // chosen in the popup
+  // Chosen in the popup: bug-reporter's recording palette without black and white
+  const HIGHLIGHT_COLORS = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#00FFFF', '#FF00FF'];
   const DEFAULT_HIGHLIGHT = '#0000FF';
 
   function highlightColor() {

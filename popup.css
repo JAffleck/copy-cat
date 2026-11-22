@@ -48,7 +48,7 @@ section > .section-title:first-child { margin-top: 2px; }
 [data-style-icon] { display: inline-flex; vertical-align: -3px; color: #e4e4e7; }
 .style-grid li { display: flex; align-items: center; gap: 6px; }
 .style-row { display: flex; align-items: center; gap: 6px; }
-.quote-variants { display: flex; gap: 8px; margin: 6px 0 0 4px; color: #a1a1aa; }
+.quote-variants { display: inline-flex; gap: 6px; vertical-align: -3px; margin-left: 2px; color: #a1a1aa; }
 .quote-variants .style-icon { color: #a1a1aa; }
 .swatches { display: flex; gap: 6px; }
 .swatch {
