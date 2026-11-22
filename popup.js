@@ -2,14 +2,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const modeDisplay = document.getElementById('mode-display');
   const toggleCheckbox = document.getElementById('trackingModeToggle');
 
-  // Must match the defaults and value names used by content.js
+  // Must match the defaults and value names used by content/state.js
   const DEFAULTS = {
     trackingMode: 'SINGLE_SNIP',
     outputFormat: 'SPLIT',
     lineDecoration: 'RAW'
   };
 
-  // Icon + label per line decoration (Split mode); keys are content.js values. Matches the legend.
+  // Icon + label per line decoration (Split mode); keys are content/state.js values. Matches the legend.
   const DECORATION_STATUS = {
     RAW:          { icon: '🔵', label: 'Split + Raw' },
     QUOTED:       { icon: '🟦', label: 'Split + Quotes' },
