@@ -25,7 +25,7 @@
         return ""; 
       }
       
-      return getCleanText(el, shouldShowList).trim();
+      return stripInvisible(getCleanText(el, shouldShowList)).trim();
     }).filter(Boolean);
   
     let formattedLines = [];
@@ -65,12 +65,13 @@
     const elements = [...frozenRanges];
     if (currentTargetElement && !elements.includes(currentTargetElement)) elements.push(currentTargetElement);
     const secret = elements.some(el => isSecretField(elementOf(el)));
-    const items = elements.length > 1 ? elements.map(el => getCleanText(el).trim()).filter(Boolean) : [];
+    const items = elements.length > 1 ? elements.map(el => stripInvisible(getCleanText(el)).trim()).filter(Boolean) : [];
     commitText(compileOutput(), { items, record: !secret });
   }
 
   // Copy the given text to the clipboard and exit selection mode with a confirmation toast
   function commitText(text, opts = {}) {
+    text = stripInvisible(text || '');
     if (!text) return exitSelectionMode();
 
     navigator.clipboard.writeText(text).then(() => {

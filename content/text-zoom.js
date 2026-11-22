@@ -2,6 +2,13 @@
 // Loaded in order with the other content/*.js files (see manifest.json); they share one
 // isolated-world scope, so top-level names here are visible to the others (not to the page).
 
+  // Invisible formatting characters pages put inside words (soft hyphen &shy;, zero-width
+  // space/joiners, word joiner, BOM). Not word breaks, and never copied.
+  const INVISIBLE_CHARS_RE = /[\u00AD\u200B-\u200D\u2060\uFEFF]/g;
+  function stripInvisible(text) {
+    return String(text).replace(INVISIBLE_CHARS_RE, '');
+  }
+
   // --- DRILL-THROUGH HELPER ---
   // Get the deepest element at a point, preferring the parent of the text node at caret
   function getDeepElementFromPoint(x, y) {
@@ -64,7 +71,10 @@
   // Find a word boundary around an offset within bounds (includes accented chars, hyphens)
   function getWordRange(textNode, offset, boundStart, boundEnd) {
     const text = textNode.nodeValue || "";
-    const wordBoundaries = /[^\w\-\u00C0-\u017F]/;
+    // Word characters: any letter/mark/number in any script, _ and -, plus invisible characters that
+    // live inside words (soft hyphen, zero-width non-joiner/joiner, word joiner, BOM). The zero-width
+    // SPACE still separates words (Thai, Khmer… use it between words); it's only dropped from copies.
+    const wordBoundaries = /[^\p{L}\p{M}\p{N}_\-\u00AD\u200C\u200D\u2060\uFEFF]/u;
     let start = offset, end = offset;
     while (start > boundStart && !wordBoundaries.test(text[start - 1])) start--;
     while (end < boundEnd && !wordBoundaries.test(text[end])) end++;
