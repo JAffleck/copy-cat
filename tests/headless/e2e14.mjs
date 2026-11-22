@@ -86,6 +86,8 @@ await pp.reload(); await sleep(400);
 check('popup status for Combined', (await pp.$eval('#mode-display', e => e.textContent)) === '🔴 Combined', await pp.$eval('#mode-display', e => e.textContent));
 await sw.evaluate(() => chrome.storage.local.set({ outputFormat: 'SPLIT', lineDecoration: 'RAW', trackingMode: 'SINGLE_SNIP' }));
 await pp.reload(); await sleep(400);
+const btn = await pp.$eval('#open-history', b => ({ text: b.textContent.trim(), title: b.title }));
+check('History button: label + icon only, shortcut in the tooltip', btn.text === '📋 History' && /^(Ctrl\+Shift\+H|No shortcut set) - Toggle copy history panel/.test(btn.title), btn);
 await pp.screenshot({ path: OUT + 'popup.png', fullPage: true });
 
 console.log(`\n${pass} passed, ${fail} failed`);

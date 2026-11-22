@@ -59,10 +59,11 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.commands.getAll(cmds => {
       const c = (cmds || []).find(x => x.name === 'toggle-history-panel');
       const key = c && c.shortcut;
-      for (const id of ['panel-shortcut', 'panel-shortcut-2']) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = key || 'not set';
-      }
+      const btn = document.getElementById('open-history');
+      if (btn) btn.title = key ? `${key} - Toggle copy history panel`
+        : 'No shortcut set - Toggle copy history panel (set one in Extensions → Keyboard shortcuts)';
+      const row = document.getElementById('panel-shortcut-2');
+      if (row) row.textContent = key || 'not set';
       const note = document.getElementById('shortcut-note');
       if (note && !key) note.textContent = 'The browser did not assign Ctrl+Shift+H (it may clash). Set it under Extensions → Keyboard shortcuts.';
     });
