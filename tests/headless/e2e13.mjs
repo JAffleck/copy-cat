@@ -40,17 +40,29 @@ check('Edit expands one row per field', r.length === 5 && r.includes('Full name=
 check('unselected radio shown greyed', r.some(x => x.startsWith('Standard=') && x.endsWith('(inactive)')), r);
 check('button now says Done', await sp.evaluate(() => [...document.querySelectorAll('#groups li .actions button')].some(b => b.textContent === 'Done')), null);
 
+// Row icons: copy + red X, hidden until the row is hovered
+const vis = (label) => sp.evaluate((label) => getComputedStyle([...document.querySelectorAll('#groups .field')].find(e => e.querySelector('.flabel').textContent === label).querySelector('.row-tools')).visibility, label);
+const titles = await sp.evaluate(() => [...document.querySelectorAll('#groups .field')][0].querySelectorAll('.row-tools button').length + ':' + [...[...document.querySelectorAll('#groups .field')][0].querySelectorAll('.row-tools button')].map(b => b.title + '|' + b.className).join(' ; '));
+check('row has a copy icon and a red X (no text buttons)', /^2:Copy this value\|icon-btn ; Remove this field.*\|icon-btn danger-x$/.test(titles), titles);
+check('row icons hidden when not hovered', (await vis('City')) === 'hidden', await vis('City'));
+const cityRow = await sp.evaluateHandle(() => [...document.querySelectorAll('#groups .field')].find(e => e.querySelector('.flabel').textContent === 'City'));
+await cityRow.hover(); await sleep(100);
+check('row icons shown while hovered', (await vis('City')) === 'visible' && (await vis('Full name')) === 'hidden', [await vis('City'), await vis('Full name')]);
+const xColor = await sp.evaluate(() => getComputedStyle([...document.querySelectorAll('#groups .field')].find(e => e.querySelector('.flabel').textContent === 'City').querySelector('.danger-x')).color);
+check('the X is red', xColor === 'rgb(248, 113, 113)', xColor);
+await sp.screenshot({ path: new URL('./out/field-row-hover.png', import.meta.url).pathname });
+
 // Copy one value (the City row)
-await sp.evaluate(() => [...document.querySelectorAll('#groups .field')].find(e => e.querySelector('.flabel').textContent === 'City').querySelector('button').click());
+await sp.evaluate(() => [...document.querySelectorAll('#groups .field')].find(e => e.querySelector('.flabel').textContent === 'City').querySelector('button[title="Copy this value"]').click());
 await sleep(300);
 const clip = await sp.evaluate(() => navigator.clipboard.readText());
 check('Copy puts the single value on the clipboard', clip === 'Arlington', clip);
-await sp.evaluate(() => [...document.querySelectorAll('#groups .field')].find(e => e.querySelector('.flabel').textContent === 'Country').querySelector('button').click());
+await sp.evaluate(() => [...document.querySelectorAll('#groups .field')].find(e => e.querySelector('.flabel').textContent === 'Country').querySelector('button[title="Copy this value"]').click());
 await sleep(300);
 check('Copy on a select copies its visible text', (await sp.evaluate(() => navigator.clipboard.readText())) === 'United States', await sp.evaluate(() => navigator.clipboard.readText()));
 
 // Remove the City field
-await sp.evaluate(() => [...document.querySelectorAll('#groups .field')].find(e => e.querySelector('.flabel').textContent === 'City').querySelectorAll('button')[1].click());
+await sp.evaluate(() => [...document.querySelectorAll('#groups .field')].find(e => e.querySelector('.flabel').textContent === 'City').querySelector('button.danger-x').click());
 await sleep(500);
 const stored = await sw.evaluate(async () => (await chrome.storage.local.get({ formGroups: [] })).formGroups[0].fields.map(f => f.label));
 r = await rows();

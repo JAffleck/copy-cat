@@ -53,15 +53,18 @@
       const v = fieldValue(f);
       val.textContent = v === '' ? '(empty)' : (f.type === 'radio' ? `${f.value} (${v})` : v);
       val.title = f.tag === 'SELECT' ? `${f.text} — value: ${f.value}` : v;
-      row.append(lab, val,
-        button('Copy', 'Copy this value', async () => {
+      const tools = document.createElement('span');
+      tools.className = 'row-tools';          // shown while the row is hovered
+      tools.append(
+        iconButton('copy', 'Copy this value', async () => {
           try { await navigator.clipboard.writeText(f.type === 'radio' ? f.value : v); status(`Copied: ${fieldLabel(f)}`); }
           catch (err) { status('Clipboard error'); }
         }),
-        iconButton('delete', 'Remove this field from the group (it will not be filled)', () => {
+        iconButton('x', 'Remove this field from the group (it will not be filled)', () => {
           send({ type: 'GROUP_REMOVE_FIELD', id: g.id, index, fingerprint: fingerprint(f) })
             .then(() => status(`Removed: ${fieldLabel(f)}`));
-        }, 'danger'));
+        }, 'danger-x'));
+      row.append(lab, val, tools);
       box.appendChild(row);
     });
     return box;
