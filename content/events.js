@@ -152,6 +152,9 @@
         }
         saveSettings(); 
         updateUI();
+      } else if (key.toLowerCase() === 's' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          // Save the form fields inside the selection as a named group (plan 8)
+          saveFormGroup(currentTargetElement);
       } else if (key.toLowerCase() === 'q') {
           let step = e.shiftKey ? -1 : 1;
           if (settings.outputFormat === 'COMBINED' || ['QUOTED', 'QUOTED_COMMA'].includes(settings.lineDecoration)) {

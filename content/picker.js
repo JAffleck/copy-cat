@@ -69,15 +69,16 @@
     (document.body || document.documentElement).appendChild(pickerHost);
   }
 
-  function pickerToast(message, x, y) {
+  function pickerToast(message, x, y, ms = 1400) {
     ensurePickerHost();
     const t = document.createElement('div');
     t.className = 'toast';
     t.textContent = message;
     t.style.left = Math.max(8, Math.min(x, innerWidth - 260)) + 'px';
     t.style.top = Math.max(8, Math.min(y, innerHeight - 40)) + 'px';
+    pickerRoot.querySelectorAll('.toast').forEach(n => n.remove());   // one at a time
     pickerRoot.appendChild(t);
-    setTimeout(() => t.remove(), 1400);
+    setTimeout(() => t.remove(), ms);
   }
 
   // Visible items: extra sections first (e.g. form groups), then history, filtered

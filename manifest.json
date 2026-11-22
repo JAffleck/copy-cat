@@ -52,7 +52,8 @@
         "content/events.js",
         "content/lifecycle.js",
         "content/insert.js",
-        "content/picker.js"
+        "content/picker.js",
+        "content/formsnap.js"
       ],
       "all_frames": true,
       "run_at": "document_start"

@@ -1,0 +1,93 @@
+<!doctype html>
+<!-- Test page for plan 8 (form groups). Not loaded by the extension. React comes from a CDN. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Copy Cat — forms test page</title>
+<style>
+  body { font: 15px sans-serif; margin: 20px; width: 900px; }
+  form, .plain { border: 1px solid #ccc; padding: 10px; margin: 12px 0; }
+  label { display: block; margin: 4px 0; }
+  input, select { font: inherit; width: 260px; }
+  input[type=checkbox], input[type=radio] { width: auto; }
+</style>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+</head>
+<body>
+  <form id="ship">
+    <h3>Shipping</h3>
+    <label>Full name <input id="s-name" name="ship_name" autocomplete="shipping name"></label>
+    <label>Street address <input id="s-line1" name="ship_line1" autocomplete="shipping address-line1"></label>
+    <label>Apartment, suite <input id="s-line2" name="ship_line2" autocomplete="shipping address-line2"></label>
+    <label>City <input id="s-city" name="ship_city" autocomplete="shipping address-level2"></label>
+    <label>Country <select id="s-country" name="ship_country" autocomplete="shipping country">
+      <option value="">--</option><option value="US">United States</option><option value="CA">Canada</option></select></label>
+    <label>Province / State <select id="s-state" name="ship_state" autocomplete="shipping address-level1"><option value="">--</option></select></label>
+    <label>Postal / ZIP code <input id="s-postal" name="ship_postal" autocomplete="shipping postal-code"></label>
+    <label>Phone <input id="s-tel" name="ship_tel" type="tel" autocomplete="shipping tel"></label>
+    <label><input id="s-same" type="checkbox" name="same_billing"> Billing same as shipping</label>
+    <label><input type="radio" name="delivery" value="standard" checked> Standard</label>
+    <label><input type="radio" name="delivery" value="express"> Express</label>
+    <label>Password <input id="s-pw" type="password" name="pw"></label>
+    <label>Card number <input id="s-cc" name="cc" autocomplete="cc-number"></label>
+  </form>
+
+  <form id="bill">
+    <h3>Billing</h3>
+    <label>Full name <input id="b-name" name="bill_name" autocomplete="billing name"></label>
+    <label>Street address <input id="b-line1" name="bill_line1" autocomplete="billing address-line1"></label>
+    <label>Apartment, suite <input id="b-line2" name="bill_line2" autocomplete="billing address-line2"></label>
+    <label>City <input id="b-city" name="bill_city" autocomplete="billing address-level2"></label>
+    <label>Country <select id="b-country" name="bill_country" autocomplete="billing country">
+      <option value="">--</option><option value="US">United States</option><option value="CA">Canada</option></select></label>
+    <label>Province / State <select id="b-state" name="bill_state" autocomplete="billing address-level1"><option value="">--</option></select></label>
+    <label>Postal / ZIP code <input id="b-postal" name="bill_postal" autocomplete="billing postal-code"></label>
+    <label>Phone <input id="b-tel" name="bill_tel" type="tel" autocomplete="billing tel"></label>
+    <label><input id="b-same" type="checkbox" name="same_billing"> Billing same as shipping</label>
+    <label><input type="radio" name="delivery_b" value="standard" checked> Standard</label>
+    <label><input type="radio" name="delivery_b" value="express"> Express</label>
+  </form>
+
+  <div class="plain" id="plain">
+    <h3>Labels only (no autocomplete / name)</h3>
+    <label>Full name <input id="x1"></label>
+    <label>Street address <input id="x2"></label>
+    <label>City <input id="x3"></label>
+    <label>Country <select id="x4"><option value="">--</option><option value="US">United States</option><option value="CA">Canada</option></select></label>
+    <label>Province / State <select id="x5"><option value="">--</option></select></label>
+    <label>Postal / ZIP code <input id="x6"></label>
+  </div>
+
+  <div id="react-root"></div>
+
+  <script>
+    const STATES = { US: [['NY', 'New York'], ['CA', 'California']], CA: [['ON', 'Ontario'], ['QC', 'Quebec']] };
+    // Country change reloads the state list after 500 ms (like a fetch)
+    function wireCountry(countryId, stateId) {
+      const c = document.getElementById(countryId), s = document.getElementById(stateId);
+      c.addEventListener('change', () => {
+        s.innerHTML = '<option value="">--</option>';
+        setTimeout(() => {
+          for (const [v, t] of STATES[c.value] || []) s.add(new Option(t, v));
+        }, 500);
+      });
+    }
+    wireCountry('s-country', 's-state'); wireCountry('b-country', 'b-state'); wireCountry('x4', 'x5');
+    // Postcode lookup overwrites the city 200 ms after the postcode changes
+    for (const [p, city] of [['s-postal', 's-city'], ['b-postal', 'b-city']]) {
+      document.getElementById(p).addEventListener('change', () => setTimeout(() => { document.getElementById(city).value = 'AutoCity'; }, 200));
+    }
+    // React-controlled form; mirrors state into #react-out
+    const e = React.createElement;
+    function App() {
+      const [name, setName] = React.useState(''), [city, setCity] = React.useState('');
+      return e('form', { id: 'rform' }, e('h3', null, 'React form'),
+        e('label', null, 'Full name ', e('input', { id: 'r-name', autoComplete: 'name', value: name, onChange: ev => setName(ev.target.value) })),
+        e('label', null, 'City ', e('input', { id: 'r-city', autoComplete: 'address-level2', value: city, onChange: ev => setCity(ev.target.value) })),
+        e('span', { id: 'react-out' }, name + '|' + city));
+    }
+    ReactDOM.createRoot(document.getElementById('react-root')).render(e(App));
+  </script>
+</body>
+</html>

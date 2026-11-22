@@ -36,6 +36,13 @@
       .join(' ');
   }
 
+  // A <label>'s own text, without the field(s) inside it (a wrapped <select> would add its options)
+  function labelText(label) {
+    const clone = label.cloneNode(true);
+    clone.querySelectorAll('select, input, textarea, button, datalist').forEach(n => n.remove());
+    return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
   function fileNameFromUrl(url) {
     if (!url) return '';
     if (/^data:/i.test(url)) return '';
@@ -98,7 +105,7 @@
       add('placeholder', el.getAttribute('placeholder'));
       const labels = el.labels ? Array.from(el.labels) : [];
       if (!labels.length && el.closest('label')) labels.push(el.closest('label'));
-      add('label', labels.map(l => (l.innerText || '').trim()).filter(Boolean).join(' '));
+      add('label', labels.map(labelText).filter(Boolean).join(' '));
       add('hint', textOfIdRefs(el.getAttribute('aria-describedby')));
       add('name', el.getAttribute('name'));
     }
