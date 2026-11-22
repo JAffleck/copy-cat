@@ -847,11 +847,12 @@
         const snapped = snapToNearestBookend();
         if (snapped) {
             if (settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(snapped)) {
-                if (currentTargetElement !== null) { currentTargetElement = null; updateUI(); }
+                if (currentTargetElement !== null) { currentTargetElement = null; clearToggleState(); updateUI(); }
                 return;
             }
             if (!sameSelection(currentTargetElement, snapped)) {
                 currentTargetElement = maybeTrim(snapped);
+                clearToggleState();
                 failedZoomInAttempt = false;
                 failedZoomOutAttempt = false;
                 updateUI();
@@ -859,6 +860,7 @@
         } else {
             if (currentTargetElement !== null) {
                 currentTargetElement = null;
+                clearToggleState();
                 updateUI();
             }
         }
@@ -881,7 +883,15 @@
             if (newRange) {
                 if (settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(newRange)) return;
                 if (!sameSelection(currentTargetElement, newRange)) {
+                    // The selection moved to a new spot: rebuild zoom history as a fresh zoom-in
+                    // here would (element → text node → range), so zoom-out starts from the word
+                    // under the mouse instead of the word originally zoomed into.
+                    const elementAtMouse = getElementTargetAt(el, clientX, clientY);
+                    zoomHistory = [];
+                    if (elementAtMouse && elementAtMouse !== targetNode) zoomHistory.push(elementAtMouse);
+                    zoomHistory.push(targetNode);
                     currentTargetElement = newRange;
+                    clearToggleState();
                     updateUI();
                 }
                 return;
@@ -889,22 +899,17 @@
         }
     }
 
-    let current = el;
-    while (current && current !== document.body && !TAG_PRIORITY.includes(current.tagName && current.tagName.toUpperCase())) {
-      current = current.parentElement;
-    }
-    
-    current = (current && current !== document.body) ? current : el;
-    current = getTightestTextElement(current, clientX, clientY);
+    const current = getElementTargetAt(el, clientX, clientY);
 
     if (settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(current)) {
       if (currentTargetElement !== null) {
         currentTargetElement = null;
+        clearToggleState();
         updateUI();
       }
       return;
     }
-    
+
     if (currentTargetElement !== current) {
       // Preserve zoom history when in granular text zoom within same container
       const keepHistory = currentTargetElement instanceof Range &&
@@ -914,8 +919,36 @@
         zoomHistory = [];
       }
       currentTargetElement = current;
+      clearToggleState();
       updateUI();
     }
+  }
+
+  // Element that tracking selects for the element under the mouse: nearest TAG_PRIORITY ancestor,
+  // then narrowed to the tightest text element at the cursor
+  function getElementTargetAt(el, clientX, clientY) {
+    let current = el;
+    while (current && current !== document.body && !TAG_PRIORITY.includes(current.tagName && current.tagName.toUpperCase())) {
+      current = current.parentElement;
+    }
+    current = (current && current !== document.body) ? current : el;
+    return getTightestTextElement(current, clientX, clientY);
+  }
+
+  // True if Range `outer` fully contains Range `inner` (false on detached/foreign nodes)
+  function rangeContains(outer, inner) {
+    try {
+      return outer.compareBoundaryPoints(Range.START_TO_START, inner) <= 0 &&
+             outer.compareBoundaryPoints(Range.END_TO_END, inner) >= 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // X-toggle state belongs to one selection; drop it when tracking moves the selection elsewhere
+  function clearToggleState() {
+    savedUntrimmedRange = null;
+    pendingInnerRange = null;
   }
 
   // Bookend Zoom: snap to narrower pair within current range
@@ -1657,6 +1690,11 @@
                 currentTargetElement = trimmed;
               }
             } else {
+              // Only restore the saved untrimmed range if it still encloses the current selection
+              // (it may be stale if the selection moved since it was saved)
+              if (savedUntrimmedRange && !rangeContains(savedUntrimmedRange, currentTargetElement)) {
+                savedUntrimmedRange = null;
+              }
               if (savedUntrimmedRange) {
                 currentTargetElement = savedUntrimmedRange;
                 savedUntrimmedRange = null;

@@ -2,69 +2,74 @@ document.addEventListener('DOMContentLoaded', () => {
   const modeDisplay = document.getElementById('mode-display');
   const toggleCheckbox = document.getElementById('trackingModeToggle');
 
-  function renderStatus(settings) {
-    let icon = '🔵';
-    if (settings.outputFormat === 'Combined') {
-      icon = '🔴';
-    } else {
-      switch (settings.lineDecoration) {
-        case 'Raw': icon = '🔵'; break;
-        case 'Quotes': icon = '🟦'; break;
-        case 'Quotes + Comma': icon = '🟩'; break;
-        case 'CSV (Comma-Separated-Values': icon = '📊'; break;
-        case 'Numbers': icon = '#️⃣'; break;
-        case 'Bullets': icon = '⏺️'; break;
-      }
-    }
-    
-    // Update the text status display using the new Title Case names
-    const decorationText = settings.outputFormat === 'Combined' ? 'Quotes' : settings.lineDecoration;
+  // Must match the defaults and value names used by content.js
+  const DEFAULTS = {
+    trackingMode: 'SINGLE_SNIP',
+    outputFormat: 'SPLIT',
+    lineDecoration: 'RAW'
+  };
+
+  // Icon + label per line decoration (Split mode); keys are content.js values. Matches the legend.
+  const DECORATION_STATUS = {
+    RAW:          { icon: '🔵', label: 'Split + Raw' },
+    QUOTED:       { icon: '🟦', label: 'Split + Quotes' },
+    QUOTED_COMMA: { icon: '🟩', label: 'Split + Quotes + Commas' },
+    CSV:          { icon: '📊', label: 'Split + CSV' },
+    NUMBERED:     { icon: '#️⃣', label: 'Split + Numbers' },
+    BULLETED:     { icon: '⏺️', label: 'Split + Bullets' }
+  };
+  const COMBINED_STATUS = { icon: '🔴', label: 'Combined + Quotes' };
+
+  // Fill in missing values and convert legacy names from older popup versions
+  function normalize(settings) {
+    const s = Object.assign({}, DEFAULTS, settings || {});
+    if (s.trackingMode === 'Multi-snip') s.trackingMode = 'MULTI_SNIP';
+    if (s.trackingMode === 'Single-snip') s.trackingMode = 'SINGLE_SNIP';
+    return s;
+  }
+
+  function renderStatus(rawSettings) {
+    const settings = normalize(rawSettings);
+
+    const status = settings.outputFormat === 'COMBINED'
+      ? COMBINED_STATUS
+      : (DECORATION_STATUS[settings.lineDecoration] ||
+         { icon: '🔵', label: `Split + ${settings.lineDecoration}` });
     if (modeDisplay) {
-      modeDisplay.innerText = `${icon} ${settings.outputFormat} + ${decorationText}`;
+      modeDisplay.innerText = `${status.icon} ${status.label}`;
     }
 
-    // Dynamically sync the radio buttons
-    if (settings.trackingMode) {
-      const currentRadio = document.querySelector(`input[name="trackingMode"][value="${settings.trackingMode}"]`);
-      if (currentRadio) currentRadio.checked = true;
-      
-      // Keep the checkbox switch in sync with the radio buttons
-      if (toggleCheckbox) {
-        toggleCheckbox.checked = (settings.trackingMode === 'Multi-snip');
-      }
+    // Sync the radio buttons and the Multi-snip switch
+    const currentRadio = document.querySelector(`input[name="trackingMode"][value="${settings.trackingMode}"]`);
+    if (currentRadio) currentRadio.checked = true;
+    if (toggleCheckbox) {
+      toggleCheckbox.checked = (settings.trackingMode === 'MULTI_SNIP');
     }
   }
 
-  // 1. Load initial storage preferences using the updated default values
-  chrome.storage.local.get({ 
-    trackingMode: 'Multi-snip',
-    outputFormat: 'Split',
-    lineDecoration: 'Raw'
-  }, (items) => {
-    renderStatus(items);
-  });
-  
-  // 2. Save preference states when a radio button is clicked
+  function refresh() {
+    chrome.storage.local.get(DEFAULTS, renderStatus);
+  }
+
+  // 1. Initial render
+  refresh();
+
+  // 2. Save when a radio button is clicked
   document.querySelectorAll('input[name="trackingMode"]').forEach(radio => {
     radio.addEventListener('change', (e) => {
-      chrome.storage.local.set({ trackingMode: e.target.value }, () => {
-        // Refresh UI state locally after setting
-        chrome.storage.local.get(null, renderStatus);
-      });
+      chrome.storage.local.set({ trackingMode: e.target.value }, refresh);
     });
   });
 
-  // 3. Save preference state when the checkbox toggle is used
+  // 3. Save when the Multi-snip switch is used
   if (toggleCheckbox) {
     toggleCheckbox.addEventListener('change', (e) => {
-      const mode = e.target.checked ? 'Multi-snip' : 'Single-snip';
-      chrome.storage.local.set({ trackingMode: mode }, () => {
-        chrome.storage.local.get(null, renderStatus);
-      });
+      const mode = e.target.checked ? 'MULTI_SNIP' : 'SINGLE_SNIP';
+      chrome.storage.local.set({ trackingMode: mode }, refresh);
     });
   }
 
-  // 4. Auto-update if user changes state via hotkeys while popup is open
+  // 4. Live update when settings change via hotkeys while the popup is open
   chrome.runtime.onMessage.addListener((request) => {
     if (request.type === 'SETTINGS_UPDATED') {
       renderStatus(request.data);
