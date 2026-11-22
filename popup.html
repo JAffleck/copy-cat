@@ -11,33 +11,34 @@
   </header>
 
   <div class="status-row">
-    <span class="status-label">Style</span>
-    <div id="mode-display" class="mode-status">🔵 Raw · split</div>
-  </div>
-
-  <div class="status-row">
     <span class="status-label">Snipping</span>
     <div class="segmented" role="radiogroup" aria-label="Snipping">
       <label><input type="radio" name="trackingMode" value="SINGLE_SNIP"><span>Single-snip</span></label>
       <label><input type="radio" name="trackingMode" value="MULTI_SNIP"><span>Multi-snip</span></label>
     </div>
   </div>
-  <p class="hint">Multi-snip: right-click adds a selection; copy them all at once. Toggle with <kbd>Shift+Space</kbd>.</p>
+  <p class="hint">Multi-snip: right-click adds a selection; copy them all at once.</p>
+
+  <div class="status-row">
+    <span class="status-label">Highlight</span>
+    <div class="swatches" id="highlight-swatches" role="radiogroup" aria-label="Highlight color"></div>
+  </div>
 
   <section>
     <div class="section-title">Styles <span class="aside"><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> to change</span></div>
-    <div class="style-row combined">🔴 Combined <span class="muted">— everything on one line</span></div>
+    <div class="style-row combined"><span data-style-icon="COMBINED"></span> Combined <span class="muted">— everything on one line</span></div>
     <div class="subhead">Split into lines<sup>*</sup></div>
     <ul class="style-grid">
-      <li>🔵 Raw</li>
-      <li>🟦 Quotes</li>
-      <li>🟩 Quotes + commas</li>
-      <li>📊 CSV</li>
-      <li>#️⃣ Numbers</li>
-      <li>⏺️ Bullets</li>
+      <li><span data-style-icon="RAW"></span> Raw</li>
+      <li><span data-style-icon="QUOTED"></span> Quotes</li>
+      <li><span data-style-icon="QUOTED_COMMA"></span> Quotes + commas</li>
+      <li><span data-style-icon="CSV"></span> CSV</li>
+      <li><span data-style-icon="NUMBERED"></span> Numbers</li>
+      <li><span data-style-icon="BULLETED"></span> Bullets</li>
     </ul>
+    <div class="quote-variants" id="quote-variants" title="Q / Shift+Q cycles the quote style"></div>
     <p class="footnote"><sup>*</sup>Lists, elements and multiple selections (Multi-snip) are split into lines
-      before the style is applied. <kbd>Q</kbd> / <kbd>Shift+Q</kbd> cycles the quote, bullet or number style.</p>
+      before the style is applied.</p>
   </section>
 
   <section>
@@ -50,8 +51,10 @@
     <dl class="keys">
       <dt><kbd>Click</kbd></dt><dd>Copy the selection</dd>
       <dt><kbd>Right-click</kbd></dt><dd>Multi-snip: freeze it and add another</dd>
+      <dt><kbd>Shift+Space</kbd></dt><dd>Switch between single-snip or multi-snip modes</dd>
       <dt><kbd>Wheel</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Zoom in / out (word ↔ element ↔ page)</dd>
       <dt><kbd>Space</kbd></dt><dd>Element zoom ↔ bracket/quote zoom</dd>
+      <dt><kbd>Q</kbd> / <kbd>Shift+Q</kbd></dt><dd>Cycle style between quote, bullet or number</dd>
       <dt><kbd>X</kbd></dt><dd>Include / exclude the brackets or quotes</dd>
       <dt><kbd>N</kbd></dt><dd>Identify: names (alt, label, aria-label, icon…) · <kbd>1</kbd>–<kbd>9</kbd> copy</dd>
       <dt><kbd>S</kbd></dt><dd>Save the form's fields as a group</dd>
@@ -68,6 +71,7 @@
     <p class="footnote" id="shortcut-note"></p>
   </section>
 
+  <script src="style-icons.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

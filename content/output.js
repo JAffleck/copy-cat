@@ -11,7 +11,9 @@
     }
   
     const isZoomedIn = zoomHistory.length > 0;
-    const qChar = STYLE_QUOTES[settings.quoteIndex];
+    const [qOpen, qClose] = QUOTE_PAIRS[settings.quoteIndex] || QUOTE_PAIRS[0];
+    // Escape the quote char inside symmetric quotes ("a \"b\" c"); brackets are left alone
+    const escQ = (t) => qOpen === qClose ? t.split(qOpen).join('\\' + qOpen) : t;
     const bChar = STYLE_BULLETS[settings.bulletIndex];
     const oChar = STYLE_OUTLINES[settings.outlineIndex];
   
@@ -33,16 +35,15 @@
   
       if (settings.outputFormat === 'COMBINED') {
         let flat = lines.join(' ').replace(/\s+/g, ' ');
-        let escaped = flat.replace(new RegExp(qChar, 'g'), '\\' + qChar);
-        formattedLines.push(`${qChar}${escaped}${qChar}`);
+        formattedLines.push(`${qOpen}${escQ(flat)}${qClose}`);
       } else {
         let blockResult = lines.map((line, lIndex) => {
-          let escaped = line.replace(new RegExp(qChar, 'g'), '\\' + qChar);
+          const escaped = escQ(line);
           const isLastItem = (bIndex === rawBlocks.length - 1 && lIndex === lines.length - 1);
   
           switch (settings.lineDecoration) {
-            case 'QUOTED': return `${qChar}${escaped}${qChar}`;
-            case 'QUOTED_COMMA': return `${qChar}${escaped}${qChar}${isLastItem ? '' : ','}`;
+            case 'QUOTED': return `${qOpen}${escaped}${qClose}`;
+            case 'QUOTED_COMMA': return `${qOpen}${escaped}${qClose}${isLastItem ? '' : ','}`;
             case 'CSV': return `${line}${isLastItem ? '' : ','}`;
             case 'NUMBERED': return `${oChar === '1.' ? (lIndex + 1) + '.' : oChar} ${line}`;
             case 'BULLETED': return `${bChar} ${line}`;

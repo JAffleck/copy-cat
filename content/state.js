@@ -43,12 +43,12 @@
     lineDecoration: 'RAW',
     quoteIndex: 0,
     bulletIndex: 0,
-    outlineIndex: 0
+    outlineIndex: 0,
+    highlightColor: '#0000FF'   // chosen in the popup (one color for every style)
   };
 
   // Constants
   const DECORATIONS = ['RAW', 'QUOTED', 'QUOTED_COMMA', 'CSV', 'NUMBERED', 'BULLETED'];
-  const STYLE_QUOTES = ['"', "'", "`"];
   const STYLE_BULLETS = ['•', '-', '*'];
   const STYLE_OUTLINES = ['1.', 'i.', 'A.', 'a.'];
   const TAG_PRIORITY = ['A', 'SPAN', 'I', 'B', 'U', 'STRONG', 'BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'LABEL', 'P', 'LI', 'TD', 'TH', 'TR', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'];

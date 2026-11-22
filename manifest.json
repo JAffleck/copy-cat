@@ -46,6 +46,7 @@
     {
       "matches": ["<all_urls>"],
       "js": [
+        "style-icons.js",
         "content/state.js",
         "content/text-zoom.js",
         "content/bookends.js",

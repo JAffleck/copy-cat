@@ -19,6 +19,14 @@ Some icons are used as-is and some are modified. Copy Cat uses the SVG path data
 | `edit` | Side panel: rename a saved group | Path unchanged; drawn at 16px in the text color |
 | `delete` | Side panel: delete a group, a history entry, or a field from a group | Path unchanged; drawn at 16px in the text color, red on hover |
 | `close` | Side panel: close button | Path unchanged; drawn at 16px in the text color |
+| Combined (article-style box with lines) | Popup legend, in-page preview: Combined style | Path unchanged; `currentColor` |
+| Raw (three lines) | Popup legend, in-page preview: Raw style | Path unchanged; `currentColor` |
+| CSV | Popup legend, in-page preview: CSV style | **Modified**: the Raw lines shortened ~10%, with commas added |
+| Numbered list | Popup legend, in-page preview: Numbers style | Path unchanged; `currentColor` |
+| Bulleted list | Popup legend, in-page preview: Bullets style | Path unchanged; `currentColor` |
+
+The quote / bracket marks (curly quotes, backquote, parentheses, brackets, braces) and the commas in
+the Quotes + commas and CSV icons are drawn by Copy Cat (`style-icons.js`), not taken from Material.
 
 The `edit` and `delete` paths were taken from the Material icon set as used in the `bug-reporter`
 extension (`src/ui/icons.js`).

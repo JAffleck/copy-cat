@@ -28,6 +28,7 @@ run 'bookend freeze (synthetic)'       "$SHELL_EXE" synth10.mjs
 run 'Identify names (tests/names.html)' "$SHELL_EXE" test5.mjs
 run 'history picker (tests/fields.html)' "$SHELL_EXE" test7.mjs
 run 'form groups (tests/forms.html)'   "$SHELL_EXE" test8.mjs
+run 'wrap styles + highlight color (16)' "$SHELL_EXE" test16.mjs
 run 'mouse-move cost (Wikipedia)'      "$SHELL_EXE" movecost.mjs
 if [ -n "$FULL_EXE" ]; then
   run 'end-to-end history (real ext)'  "$FULL_EXE" e2e7.mjs

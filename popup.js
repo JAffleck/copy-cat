@@ -54,6 +54,35 @@ document.addEventListener('DOMContentLoaded', () => {
   // 1. Initial render
   refresh();
 
+  // Style icons (shared with the in-page preview)
+  document.querySelectorAll('[data-style-icon]').forEach(el => {
+    el.innerHTML = styleIconSvg(el.dataset.styleIcon, 0, 16);
+  });
+  const variants = document.getElementById('quote-variants');
+  if (variants) {
+    variants.innerHTML = QUOTE_PAIRS.map((pair, i) => `<span title="${pair.join(' ')}">${styleIconSvg('QUOTED', i, 16)}</span>`).join('');
+  }
+
+  // Highlight color: one color for every style (the in-page highlight), saved for the content scripts
+  const HIGHLIGHT_COLORS = [['#FF0000', 'Red'], ['#00FF00', 'Green'], ['#0000FF', 'Blue'], ['#FFFF00', 'Yellow']];
+  const swatchBox = document.getElementById('highlight-swatches');
+  function renderSwatches(current) {
+    if (!swatchBox) return;
+    swatchBox.textContent = '';
+    for (const [hex, name] of HIGHLIGHT_COLORS) {
+      const b = document.createElement('button');
+      b.className = 'swatch';
+      b.style.background = hex;
+      b.title = name;
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-label', name);
+      b.setAttribute('aria-checked', String(hex === current));
+      b.addEventListener('click', () => chrome.storage.local.set({ highlightColor: hex }, () => renderSwatches(hex)));
+      swatchBox.appendChild(b);
+    }
+  }
+  chrome.storage.local.get({ highlightColor: '#0000FF' }, r => renderSwatches(String(r.highlightColor).toUpperCase()));
+
   // Show the browser-assigned panel shortcut (browsers skip a suggested key that clashes)
   if (chrome.commands) {
     chrome.commands.getAll(cmds => {

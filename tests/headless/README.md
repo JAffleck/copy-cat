@@ -31,11 +31,12 @@ Override browsers with `CHROME_SHELL=/path/to/chrome-headless-shell` and
 | `test5.mjs` | Identify names for every source, hover/copy by name (plan 5) |
 | `test7.mjs` | History picker: paste into every field type incl. React/Vue/iframe (plan 7) |
 | `test8.mjs` | Form groups: save, match, async state, overwrite re-check (plan 8) |
+| `test16.mjs` | Wrap styles incl. ( ) [ ] { }, Q cycle, one highlight color (frozen 40%), SVG style icon in the preview (plan 16) |
 | `movecost.mjs` | Mouse-move evaluation cost (median/p95/max ms) |
 | `e2e7.mjs`, `e2e8.mjs` | Real unpacked extension: background worker, storage, side panel routes |
 | `uswds-address.mjs` | Real site (designsystem.digital.gov address form): save a group, fill it via shortcut / row click / Fill button (run by hand) |
 | `e2e13.mjs` | Real extension: side-panel group editor (Edit, Copy one value, Remove one field, fill after edit) |
-| `e2e14.mjs` | Real extension: Group N names, rename/delete icons, history delete icon, panel toggle route, popup labels; screenshots in `out/` |
+| `e2e14.mjs` | Real extension: Group N names, rename/delete icons, history delete icon, panel toggle route, popup labels; screenshots `out/popup.png`, `out/preview.png` (plan 16 popup checks too) |
 | `e2e12.mjs` | Real extension: Alt+V / Alt+Shift+V, Insert into an unfocused page and into a tab opened before install, preview Fill button |
 
 `hook.js` is a test-only helper that exposes internal selection state (`window.__cc()`).

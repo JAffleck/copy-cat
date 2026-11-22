@@ -158,7 +158,7 @@
       } else if (key.toLowerCase() === 'q') {
           let step = e.shiftKey ? -1 : 1;
           if (settings.outputFormat === 'COMBINED' || ['QUOTED', 'QUOTED_COMMA'].includes(settings.lineDecoration)) {
-            settings.quoteIndex = (settings.quoteIndex + step + STYLE_QUOTES.length) % STYLE_QUOTES.length;
+            settings.quoteIndex = (settings.quoteIndex + step + QUOTE_PAIRS.length) % QUOTE_PAIRS.length;
           } else if (settings.lineDecoration === 'BULLETED') {
             settings.bulletIndex = (settings.bulletIndex + step + STYLE_BULLETS.length) % STYLE_BULLETS.length;
           } else if (settings.lineDecoration === 'NUMBERED') {

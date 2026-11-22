@@ -45,6 +45,18 @@ section > .section-title:first-child { margin-top: 2px; }
 .style-row { margin: 2px 0 6px; }
 .muted { color: #71717a; }
 .subhead { color: #d4d4d8; margin: 6px 0 4px; }
+[data-style-icon] { display: inline-flex; vertical-align: -3px; color: #e4e4e7; }
+.style-grid li { display: flex; align-items: center; gap: 6px; }
+.style-row { display: flex; align-items: center; gap: 6px; }
+.quote-variants { display: flex; gap: 8px; margin: 6px 0 0 4px; color: #a1a1aa; }
+.quote-variants .style-icon { color: #a1a1aa; }
+.swatches { display: flex; gap: 6px; }
+.swatch {
+  width: 20px; height: 20px; border-radius: 4px; cursor: pointer; padding: 0;
+  border: 2px solid #3f3f46; position: relative;
+}
+.swatch[aria-checked="true"] { border-color: #fff; box-shadow: 0 0 0 2px #2563eb; }
+.swatch:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
 .style-grid { list-style: none; padding: 0; margin: 0 0 0 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; }
 .footnote { color: #71717a; font-size: 11px; margin: 8px 0 0; line-height: 1.4; }
 dl.keys { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; margin: 0; align-items: baseline; }

@@ -106,15 +106,22 @@
     return getTargetRects(target);
   }
 
-  const HIGHLIGHT_ALPHA = 0.2;     // highlighter fill opacity for all selections
-  const FROZEN_COLOR = '#10b981';  // Multi-snip frozen selections (green)
+  const HIGHLIGHT_ALPHA = 0.2;     // active selection fill opacity
+  const FROZEN_ALPHA = 0.4;        // Multi-snip frozen selections: same color, stronger
+  const HIGHLIGHT_COLORS = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00'];   // chosen in the popup
+  const DEFAULT_HIGHLIGHT = '#0000FF';
+
+  function highlightColor() {
+    const c = String(settings.highlightColor || '').toUpperCase();
+    return HIGHLIGHT_COLORS.includes(c) ? c : DEFAULT_HIGHLIGHT;
+  }
 
   // Build one highlighter block (no border, translucent fill, 1px vertical bleed like a marker)
-  function makeHighlightBox(rect, color) {
+  function makeHighlightBox(rect, color, alpha = HIGHLIGHT_ALPHA) {
     const box = document.createElement('div');
     box.style.cssText = `position: absolute; top: ${rect.top - 1}px; left: ${rect.left}px; ` +
       `width: ${rect.width}px; height: ${rect.height + 2}px; ` +
-      `background-color: ${hexToRgba(color, HIGHLIGHT_ALPHA)}; border: none; border-radius: 2px; ` +
+      `background-color: ${hexToRgba(color, alpha)}; border: none; border-radius: 2px; ` +
       `pointer-events: none; transition: all 0.05s ease-out;`;
     return box;
   }
@@ -143,23 +150,6 @@
     }
     merged.push({ top: current.top, left: current.left, width: current.right - current.left, height: current.bottom - current.top });
     return merged;
-  }
-
-  // --- DYNAMIC MODE THEME COLORS ---
-  // Return the hex color matching the current output format / line decoration mode
-  function getActiveThemeColor() {
-    if (settings.outputFormat === 'COMBINED') {
-      return '#ef4444'; // 🔴 Red
-    }
-    switch (settings.lineDecoration) {
-      case 'RAW': return '#3b82f6';          // 🔵 Blue
-      case 'QUOTED': return '#1d4ed8';       // 🟦 Royal Blue
-      case 'QUOTED_COMMA': return '#10b981'; // 🟩 Green
-      case 'CSV': return '#f59e0b';          // 📊 Amber
-      case 'NUMBERED': return '#6b7280';     // #️⃣ Gray
-      case 'BULLETED': return '#8b5cf6';     // ⏺️ Purple
-      default: return '#3b82f6';
-    }
   }
 
   // Convert a hex color string and alpha value to an rgba() CSS string
@@ -210,35 +200,24 @@
       if (named) hint += `<div style="font-size: 11px; color: #a1a1aa; margin-top: 2px;">Name from ${escapeHtml(named.source)} · [N] all names</div>`;
     }
 
-    const themeColor = getActiveThemeColor();
-
+    // One highlight color (chosen in the popup), whatever the copy style
+    const color = highlightColor();
     frozenRanges.forEach(el => {
       mergeRects(getHighlightRects(el)).forEach(rect => {
         if (rect.width === 0 || rect.height === 0) return;
-        overlayContainer.appendChild(makeHighlightBox(rect, FROZEN_COLOR));
+        overlayContainer.appendChild(makeHighlightBox(rect, color, FROZEN_ALPHA));
       });
     });
 
     if (currentTargetElement) {
       mergeRects(getHighlightRects(currentTargetElement)).forEach(rect => {
         if (rect.width === 0 || rect.height === 0) return;
-        overlayContainer.appendChild(makeHighlightBox(rect, themeColor));
+        overlayContainer.appendChild(makeHighlightBox(rect, color));
       });
     }
 
-    let primaryIcon = '🔵';
-    if (settings.outputFormat === 'COMBINED') {
-      primaryIcon = '🔴';
-    } else {
-      switch (settings.lineDecoration) {
-        case 'RAW': primaryIcon = '🔵'; break;
-        case 'QUOTED': primaryIcon = '🟦'; break;
-        case 'QUOTED_COMMA': primaryIcon = '🟩'; break;
-        case 'NUMBERED': primaryIcon = '#️⃣'; break;
-        case 'BULLETED': primaryIcon = '⏺️'; break;
-        case 'CSV': primaryIcon = '📊'; break;
-      }
-    }
+    // The copy style shows here only: its icon + name
+    const styleIcon = styleIconSvg(styleKindFor(settings), settings.quoteIndex, 16);
 
     const decorationLabels = {
       'RAW': 'Raw', 'QUOTED': 'Quotes', 'QUOTED_COMMA': 'Quotes + commas',
@@ -253,16 +232,15 @@
     const modeDisplay = modeLabels[settings.trackingMode] || 'Unknown';
 
     let styleOption = '';
-    if (settings.lineDecoration === 'QUOTED') styleOption = STYLE_QUOTES[settings.quoteIndex];
-    else if (settings.lineDecoration === 'BULLETED') styleOption = STYLE_BULLETS[settings.bulletIndex];
-    else if (settings.lineDecoration === 'NUMBERED') styleOption = STYLE_OUTLINES[settings.outlineIndex];
+    if (settings.lineDecoration === 'BULLETED' && settings.outputFormat !== 'COMBINED') styleOption = STYLE_BULLETS[settings.bulletIndex];
+    else if (settings.lineDecoration === 'NUMBERED' && settings.outputFormat !== 'COMBINED') styleOption = STYLE_OUTLINES[settings.outlineIndex];
 
     toast.style.display = 'block';
     toast.innerHTML = `
-      <div class="legend-icon" style="font-size: 12px; margin-bottom: 8px; border-bottom: 1px solid #3f3f46; padding-bottom: 4px;">
-        <strong>${primaryIcon}</strong> 
-        ${modeDisplay}${zoomMode === 'BOOKEND_ZOOM' ? ' — Bookend' : ''}  
-        ${settings.outputFormat === 'COMBINED' ? 'Combined' : decorationLabels[settings.lineDecoration]} ${styleOption ? `${styleOption}` : ''}
+      <div class="legend-icon" style="font-size: 12px; margin-bottom: 8px; border-bottom: 1px solid #3f3f46; padding-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+        <span style="display: inline-flex; color: #e4e4e7;">${styleIcon}</span>
+        <span>${settings.outputFormat === 'COMBINED' ? 'Combined' : decorationLabels[settings.lineDecoration]}${styleOption ? ' ' + escapeHtml(styleOption) : ''}</span>
+        <span style="margin-left: auto; color: #a1a1aa;">${modeDisplay}${zoomMode === 'BOOKEND_ZOOM' ? ' · Bookend' : ''}</span>
       </div>
       <pre>${escapeHtml(compileOutput()) || '...'}</pre>
       ${hint}

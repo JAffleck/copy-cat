@@ -17,7 +17,7 @@ const check = (name, ok, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const browser = await puppeteer.launch({ executablePath: process.env.CHROME_EXE, headless: true, pipe: true, enableExtensions: [ROOT], args: ['--no-sandbox'] });
 const swT = await browser.waitForTarget(t => t.type() === 'service_worker' && t.url().endsWith('/background.js'), { timeout: 15000 });
-const sw = await swT.worker(); const extId = new URL(swT.url()).host;
+const sw = await swT.worker(); const sw0 = sw; const extId = new URL(swT.url()).host;
 const groups = () => sw.evaluate(async () => (await chrome.storage.local.get({ formGroups: [] })).formGroups);
 
 // 1. saving two groups → "Group 1", "Group 2"
@@ -77,18 +77,33 @@ check('Ctrl+Shift+H command registered', cmds.some(c => c.name === 'toggle-histo
 const pp = await browser.newPage(); await pp.setViewport({ width: 372, height: 900 });
 await sw.evaluate(() => chrome.storage.local.set({ outputFormat: 'SPLIT', lineDecoration: 'QUOTED_COMMA', trackingMode: 'MULTI_SNIP' }));
 await pp.goto(`chrome-extension://${extId}/popup.html`); await sleep(400);
-const status = await pp.$eval('#mode-display', e => e.textContent);
-check('popup status uses the new label', status === '🟩 Quotes + commas · split', status);
+check('popup: no current-style row at the top', !(await pp.$('#mode-display')), null);
 const multi = await pp.$eval('input[value=MULTI_SNIP]', e => e.checked);
 check('popup snipping toggle reflects Multi-snip', multi === true, multi);
-await sw.evaluate(() => chrome.storage.local.set({ outputFormat: 'COMBINED' }));
-await pp.reload(); await sleep(400);
-check('popup status for Combined', (await pp.$eval('#mode-display', e => e.textContent)) === '🔴 Combined', await pp.$eval('#mode-display', e => e.textContent));
-await sw.evaluate(() => chrome.storage.local.set({ outputFormat: 'SPLIT', lineDecoration: 'RAW', trackingMode: 'SINGLE_SNIP' }));
+const icons = await pp.$$eval('[data-style-icon] svg', els => els.length);
+check('popup legend uses SVG style icons (7) + 6 quote variants', icons === 7 && (await pp.$$eval('#quote-variants svg', els => els.length)) === 6, icons);
+const keys = await pp.$$eval('dl.keys dd', els => els.map(e => e.textContent));
+check('hotkey rows: Shift+Space and Q / Shift+Q', keys.includes('Switch between single-snip or multi-snip modes') && keys.includes('Cycle style between quote, bullet or number'), keys);
+const swatches = await pp.$$eval('#highlight-swatches .swatch', els => els.map(e => [e.title, e.getAttribute('aria-checked')]));
+check('highlight swatches: red, green, blue (default, checked), yellow', JSON.stringify(swatches) === JSON.stringify([['Red', 'false'], ['Green', 'false'], ['Blue', 'true'], ['Yellow', 'false']]), swatches);
+await pp.click('#highlight-swatches .swatch[title=Yellow]'); await sleep(300);
+const saved = await sw0.evaluate(async () => (await chrome.storage.local.get('highlightColor')).highlightColor);
+check('clicking a swatch saves the highlight color', saved === '#FFFF00', saved);
+await sw0.evaluate(() => chrome.storage.local.set({ highlightColor: '#0000FF' }));
 await pp.reload(); await sleep(400);
 const btn = await pp.$eval('#open-history', b => ({ text: b.textContent.trim(), title: b.title }));
 check('History button: label + icon only, shortcut in the tooltip', btn.text === '📋 History' && /^(Ctrl\+Shift\+H|No shortcut set) - Toggle copy history panel/.test(btn.title), btn);
 await pp.screenshot({ path: OUT + 'popup.png', fullPage: true });
+
+// in-page preview with the SVG style icon (screenshot for review)
+await sw.evaluate(() => chrome.storage.local.set({ outputFormat: 'SPLIT', lineDecoration: 'QUOTED_COMMA', quoteIndex: 0, trackingMode: 'SINGLE_SNIP' }));
+await page.bringToFront(); await page.reload({ waitUntil: 'networkidle2' });
+const pc = await page.evaluate(() => { const el = document.getElementById('s-name'); el.scrollIntoView({ block: 'center' }); const r = el.closest('form').getBoundingClientRect(); return { x: r.left + 40, y: r.top + 60 }; });
+await page.mouse.move(pc.x, pc.y);
+await page.keyboard.down('Control'); await page.keyboard.down('Shift'); await page.mouse.click(pc.x, pc.y);
+await page.keyboard.up('Shift'); await page.keyboard.up('Control'); await sleep(400);
+await page.screenshot({ path: OUT + 'preview.png' });
+await page.keyboard.press('Escape');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
