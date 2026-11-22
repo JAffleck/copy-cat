@@ -20,7 +20,9 @@ Some icons are used as-is and some are modified. Copy Cat uses the SVG path data
 | `delete` | Side panel: delete a group, a history entry, or a field from a group | Path unchanged; drawn at 16px in the text color, red on hover |
 | `close` | Side panel: close button | Path unchanged; drawn at 16px in the text color |
 | `close` (thin X variant) | Side panel field editor: remove a field from a group | Path unchanged; 16px, red |
-| `content_copy` | Side panel field editor: copy one value | **Modified**: diagonal joins added from the front sheet's top-left and bottom-right corners to the back sheet |
+| `content_paste` | Side panel history: Insert (paste into the page) | Path unchanged (from bug-reporter `svg/material`); scaled from its 960-unit viewBox to 24 |
+| `push_pin` (outlined / filled) | Side panel history: Pin / Unpin | Path unchanged; filled and amber when pinned |
+| `content_copy` | Side panel: copy one value (field editor) or a history entry | **Modified**: diagonal joins added from the front sheet's top-left and bottom-right corners to the back sheet |
 | Combined (article-style box with lines) | Popup legend, in-page preview: Combined style | Path unchanged; `currentColor` |
 | Raw (three lines) | Popup legend, in-page preview: Raw style | Path unchanged; `currentColor` |
 | CSV | Popup legend, in-page preview: CSV style | **Modified**: the Raw lines shortened ~10%, with commas added |

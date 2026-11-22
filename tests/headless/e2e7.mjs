@@ -74,12 +74,21 @@ await sp.goto(`chrome-extension://${extId}/sidepanel.html`);
 await new Promise(r => setTimeout(r, 500));
 const items = await sp.$$eval('#list li .text', els => els.map(e => e.textContent));
 check('side panel lists history', items.includes('Ada Lovelace'), items);
-await sp.evaluate(() => [...document.querySelectorAll('#list li')].find(li => li.querySelector('.text').textContent === 'Ada Lovelace').querySelector('button:nth-child(3)').click());
+await sp.evaluate(() => [...document.querySelectorAll('#list li')].find(li => li.querySelector('.text').textContent === 'Ada Lovelace').querySelector('button[title^="Pin"]').click());
 await new Promise(r => setTimeout(r, 500));
 const pinned = await sw.evaluate(async () => (await chrome.storage.local.get({ clipHistory: [] })).clipHistory.find(e => e.text === 'Ada Lovelace')?.pinned);
 const pinClass = await sp.evaluate(() => [...document.querySelectorAll('#list li')].find(li => li.querySelector('.text').textContent === 'Ada Lovelace').className);
 check('Pin button pins (storage + panel re-render)', pinned === true && pinClass === 'pinned', [pinned, pinClass]);
-await sp.evaluate(() => [...document.querySelectorAll('#list li')].find(li => li.querySelector('.text').textContent === 'Ada Lovelace').querySelector('button:nth-child(4)').click());
+const entryVis = () => sp.evaluate(() => [...document.querySelectorAll('#list li')].map(li => li.querySelector('.text').textContent.slice(0, 12) + ':' +
+  [...li.querySelectorAll('.row-tools button')].map(b => getComputedStyle(b).visibility[0]).join('')));
+await sp.mouse.move(5, 5); await new Promise(r => setTimeout(r, 100));
+const idle = await entryVis();
+check('history icons hidden until hover; a pinned entry keeps its pin visible', idle.every(v => v.startsWith('Ada Lovelace') ? v.endsWith(':hhvh') : v.endsWith(':hhhh')), idle);
+const ada = await sp.evaluateHandle(() => [...document.querySelectorAll('#list li')].find(li => li.querySelector('.text').textContent === 'Ada Lovelace'));
+await ada.hover(); await new Promise(r => setTimeout(r, 100));
+check('hovering an entry shows its copy, insert, pin, delete icons', (await entryVis()).find(v => v.startsWith('Ada Lovelace')).endsWith(':vvvv'), await entryVis());
+await sp.screenshot({ path: new URL('./out/history-hover.png', import.meta.url).pathname });
+await sp.evaluate(() => [...document.querySelectorAll('#list li')].find(li => li.querySelector('.text').textContent === 'Ada Lovelace').querySelector('button[title="Delete this entry"]').click());
 await new Promise(r => setTimeout(r, 500));
 check('Delete button removes the entry', !(await hist()).includes('Ada Lovelace'), await hist());
 

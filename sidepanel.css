@@ -70,7 +70,11 @@ li.pinned { border-color: #a16207; }
   flex: 1; min-width: 0; font: inherit; color: #e4e4e7; background: #27272a;
   border: 1px solid #3b82f6; border-radius: 4px; padding: 1px 4px;
 }
-li .actions .icon-btn { margin-left: auto; }
+li .actions .icon-btn.danger { margin-left: auto; }
+#list li .row-tools .icon-btn { visibility: hidden; }
+#list li:hover .row-tools .icon-btn, #list li:focus-within .row-tools .icon-btn,
+#list li .row-tools .icon-btn.pinned { visibility: visible; }
+.icon-btn.pinned { color: #fbbf24; }
 .fields { margin: 6px 0 4px; border-top: 1px solid #29292e; padding-top: 4px; }
 .field { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid #1f1f23; }
 .field .flabel { color: #a1a1aa; width: 38%; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

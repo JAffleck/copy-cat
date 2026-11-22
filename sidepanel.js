@@ -54,17 +54,18 @@ document.addEventListener('DOMContentLoaded', () => {
       meta.title = e.url || '';
       const actions = document.createElement('div');
       actions.className = 'actions';
+      actions.className = 'actions row-tools';     // shown while the entry is hovered
       actions.append(
-        button('Copy', 'Copy to the clipboard', async () => {
+        iconButton('copy', 'Copy to the clipboard', async () => {
           try { await navigator.clipboard.writeText(e.text); status('Copied'); }
           catch (err) { status('Clipboard error'); }
         }),
-        button('Insert', 'Paste into the field you last clicked in the current tab', async () => {
+        iconButton('paste', 'Insert: paste into the field you last clicked in the current tab', async () => {
           const res = await send({ type: 'INSERT_ENTRY', text: e.text });
           status(res && res.ok ? 'Pasted into the page' : (res && res.reason) || 'Could not paste');
         }),
-        button(e.pinned ? 'Unpin' : 'Pin', e.pinned ? 'Let it expire normally' : 'Keep it at the top, never expires',
-          () => send({ type: 'HISTORY_PIN', id: e.id, pinned: !e.pinned })),
+        iconButton(e.pinned ? 'pinFilled' : 'pin', e.pinned ? 'Unpin (let it expire normally)' : 'Pin (keep it at the top, never expires)',
+          () => send({ type: 'HISTORY_PIN', id: e.id, pinned: !e.pinned }), e.pinned ? 'pinned' : ''),
         iconButton('delete', 'Delete this entry', () => send({ type: 'HISTORY_DELETE', id: e.id }), 'danger')
       );
       li.append(text, meta, actions);
