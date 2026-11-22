@@ -62,6 +62,12 @@
       .pin { color: #fbbf24; }
       .empty { padding: 10px; color: #a1a1aa; }
       .foot { padding: 5px 10px; font-size: 11px; color: #60a5fa; border-top: 1px solid #3f3f46; }
+      .foot.actions { display: flex; gap: 8px; justify-content: flex-end; padding: 8px 10px; }
+      .btn { font: 12px system-ui, sans-serif; color: #e4e4e7; background: #27272a; border: 1px solid #3f3f46;
+        border-radius: 5px; padding: 4px 10px; cursor: pointer; }
+      .btn:hover { background: #3f3f46; }
+      .btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+      .btn.primary:hover { background: #1d4ed8; }
       .toast { position: fixed; background: #18181b; color: #e4e4e7; border: 1px solid #3f3f46; border-radius: 6px;
         padding: 6px 12px; font: 13px system-ui, sans-serif; pointer-events: none; box-shadow: 0 6px 16px rgba(0,0,0,.4); }
     `;
@@ -207,6 +213,7 @@
       if (!e.composedPath().includes(pickerHost)) closePicker();
     }
     if (e.button !== 0 || !e.altKey || e.ctrlKey || e.shiftKey || e.metaKey) return;
+    if (!extensionAlive()) return;
     if (typeof isSelectionMode !== 'undefined' && isSelectionMode) return;
     const path = e.composedPath();
     const target = path[0];
@@ -235,6 +242,28 @@
     }, { capture: true });
   }
 
+  // Alt+V / Alt+Shift+V in the page: open the picker for the focused field (works even when the
+  // browser didn't assign the extension shortcut). Ctrl+Alt (AltGr) and selection mode are ignored.
+  let lastPickerOpen = 0;
+  function openPickerForFocus() {
+    if (Date.now() - lastPickerOpen < 300) return;      // shortcut + in-page key both fired
+    lastPickerOpen = Date.now();
+    const field = editableFrom(document.activeElement);
+    if (field && !isSecretField(field)) {
+      const r = field.getBoundingClientRect();
+      openPicker('insert', field, r.left, r.bottom);
+    } else {
+      openPicker('copy', null, innerWidth / 2 - 170, innerHeight / 3);
+    }
+  }
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'KeyV' || !e.altKey || e.ctrlKey || e.metaKey || picker || !extensionAlive()) return;
+    if (typeof isSelectionMode !== 'undefined' && isSelectionMode) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    openPickerForFocus();
+  }, { capture: true });
+
   window.addEventListener('resize', closePicker);
   window.addEventListener('scroll', () => { if (picker && !picker.field) closePicker(); else if (picker) renderPicker(); }, { capture: true, passive: true });
 
@@ -246,21 +275,23 @@
     try { chrome.runtime.sendMessage({ type: 'FIELD_FOCUS' }).catch(() => {}); } catch (err) {}
   }, true);
 
+  // Field for side-panel Insert/Fill: the last focused one, else whatever has focus in the page
+  // (e.g. the field was focused before these scripts were injected)
+  function targetFieldForPanel() {
+    if (lastFocusedField && lastFocusedField.isConnected) return lastFocusedField;
+    const f = editableFrom(document.activeElement);
+    return f && !isSecretField(f) ? f : null;
+  }
+
   // --- messages from the background worker ---
   try {
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (!msg) return;
       if (msg.type === 'OPEN_PICKER') {
         if (!document.hasFocus()) return;           // only the focused frame answers
-        const field = editableFrom(document.activeElement);
-        if (field && !isSecretField(field)) {
-          const r = field.getBoundingClientRect();
-          openPicker('insert', field, r.left, r.bottom);
-        } else {
-          openPicker('copy', null, innerWidth / 2 - 170, innerHeight / 3);
-        }
+        openPickerForFocus();
       } else if (msg.type === 'INSERT_TEXT') {
-        const field = lastFocusedField && lastFocusedField.isConnected ? lastFocusedField : null;
+        const field = targetFieldForPanel();
         if (!field) { sendResponse({ ok: false, reason: 'Click into a field on the page first' }); return; }
         sendResponse(insertIntoField(field, msg.text));
       }

@@ -31,6 +31,7 @@ run 'mouse-move cost (Wikipedia)'      "$SHELL_EXE" movecost.mjs
 if [ -n "$FULL_EXE" ]; then
   run 'end-to-end history (real ext)'  "$FULL_EXE" e2e7.mjs
   run 'end-to-end groups (real ext)'   "$FULL_EXE" e2e8.mjs
+  run 'end-to-end Insert/Alt+V (plan 12)' "$FULL_EXE" e2e12.mjs
 else
   echo 'end-to-end: skipped (no Chrome for Testing; set CHROME_FULL)'
 fi

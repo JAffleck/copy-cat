@@ -54,6 +54,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // 1. Initial render
   refresh();
 
+  // Show the browser-assigned shortcut (browsers skip a suggested key that clashes)
+  const cmdEl = document.getElementById('cmd-shortcut');
+  if (cmdEl && chrome.commands) {
+    chrome.commands.getAll(cmds => {
+      const c = (cmds || []).find(x => x.name === 'open-history-picker');
+      cmdEl.textContent = c && c.shortcut ? c.shortcut : 'no browser shortcut assigned (set one in Extensions → Keyboard shortcuts)';
+    });
+  }
+
   // Open the history side panel. Chrome requires the call to happen directly in the click, so the
   // window id is looked up in advance.
   let windowId = null;

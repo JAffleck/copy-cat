@@ -19,7 +19,7 @@ await page.setViewport({ width: 1280, height: 900 });
 const errors = []; page.on('pageerror', e => errors.push(e.message));
 await page.evaluateOnNewDocument(() => {
   window.chrome = { storage: { local: { get: (d, cb) => cb(Object.assign({}, d, { trackingMode: 'MULTI_SNIP' })), set: (o, cb) => cb && cb() } },
-                    runtime: { sendMessage: () => Promise.resolve(), onMessage: { addListener() {} } } };
+                    runtime: { id: 'test', sendMessage: () => Promise.resolve(), onMessage: { addListener() {} } } };
 });
 await page.goto('https://es.wikipedia.org/wiki/Quote_Unquote', { waitUntil: 'networkidle2', timeout: 90000 });
 if (dark) await page.evaluate(() => { document.documentElement.classList.remove('skin-theme-clientpref-day', 'skin-theme-clientpref-os'); document.documentElement.classList.add('skin-theme-clientpref-night'); });

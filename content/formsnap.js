@@ -261,8 +261,17 @@
     panel.className = 'panel preview';
     panel.innerHTML = `<div class="head"><span>🧾 Fill “${esc(group.name)}”</span><span>${plan.steps.length}/${plan.steps.length + plan.unmatched.length}</span></div>` +
       `<div style="max-height:260px; overflow:auto">${rows || '<div class="empty">No matching fields in this form</div>'}</div>` +
-      `<div class="foot">Enter fill · Esc cancel</div>`;
-    panel.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); });
+      `<div class="foot actions"><button class="btn primary" data-act="fill">Fill (Enter)</button>` +
+      `<button class="btn" data-act="cancel">Cancel (Esc)</button></div>`;
+    panel.addEventListener('mousedown', e => {
+      e.preventDefault();             // keep focus in the field
+      e.stopPropagation();
+      const btn = e.composedPath().find(n => n.dataset && n.dataset.act);
+      if (!btn || !groupPreview) return;
+      const { group: g, field: f } = groupPreview;
+      closeGroupPreview();
+      if (btn.dataset.act === 'fill') runFill(g, f);
+    });
     pickerRoot.appendChild(panel);
     const r = field ? field.getBoundingClientRect() : { left: innerWidth / 2 - 170, bottom: innerHeight / 3 };
     panel.style.left = Math.max(8, Math.min(r.left, innerWidth - panel.offsetWidth - 8)) + 'px';
@@ -320,7 +329,7 @@
   try {
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (!msg || msg.type !== 'FILL_GROUP') return;
-      const field = lastFocusedField && lastFocusedField.isConnected ? lastFocusedField : null;
+      const field = targetFieldForPanel();
       if (!field) { sendResponse({ ok: false, reason: 'Click into a field of the form first' }); return; }
       loadGroups(groups => {
         const group = groups.find(g => g.id === msg.id);

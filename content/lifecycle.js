@@ -61,7 +61,7 @@
   }
 
   window.addEventListener('mousedown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !isSelectionMode && e.button === 0) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !isSelectionMode && e.button === 0 && extensionAlive()) {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();

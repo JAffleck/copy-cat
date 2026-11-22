@@ -33,6 +33,8 @@ Override browsers with `CHROME_SHELL=/path/to/chrome-headless-shell` and
 | `test8.mjs` | Form groups: save, match, async state, overwrite re-check (plan 8) |
 | `movecost.mjs` | Mouse-move evaluation cost (median/p95/max ms) |
 | `e2e7.mjs`, `e2e8.mjs` | Real unpacked extension: background worker, storage, side panel routes |
+| `uswds-address.mjs` | Real site (designsystem.digital.gov address form): save a group, fill it via shortcut / row click / Fill button (run by hand) |
+| `e2e12.mjs` | Real extension: Alt+V / Alt+Shift+V, Insert into an unfocused page and into a tab opened before install, preview Fill button |
 
 `hook.js` is a test-only helper that exposes internal selection state (`window.__cc()`).
 Unit tests for the history store: `node ../history-core.test.mjs`.

@@ -14,7 +14,7 @@ await page.evaluateOnNewDocument(() => {
       get: (d, cb) => { const r = Object.fromEntries(Object.entries(d).map(([k, v]) => [k, k in store ? JSON.parse(JSON.stringify(store[k])) : v]));
         if (cb) { cb(r); return; } return Promise.resolve(r); },
       set: (o, cb) => { Object.assign(store, JSON.parse(JSON.stringify(o))); if (cb) cb(); return Promise.resolve(); } } },
-    runtime: {
+    runtime: { id: 'test',
       sendMessage: (msg) => {
         if (msg.type === 'HISTORY_RECORD') store.clipHistory = window.historyAdd(store.clipHistory, msg.texts, msg);
         if (msg.type === 'GROUP_SAVE') store.formGroups = window.groupsAdd(store.formGroups, msg.group);

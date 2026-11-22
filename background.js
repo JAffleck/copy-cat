@@ -18,6 +18,26 @@ async function activeTab() {
   return tab;
 }
 
+// Send a side-panel action to the frame of the active tab that last had a focused field
+async function routeToPage(out, tab) {
+  tab = tab || await activeTab();
+  if (!tab) return { ok: false, reason: 'No active tab' };
+  const frameId = (await getLastFieldFrame(tab.id)) || 0;
+  try {
+    return await chrome.tabs.sendMessage(tab.id, out, { frameId });
+  } catch (e) {
+    // No live content script: the tab was open before the extension was (re)loaded. Inject the
+    // content scripts now and retry in the top frame (they fall back to the page's focused field).
+    try {
+      const files = chrome.runtime.getManifest().content_scripts[0].js;
+      await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files });
+      return await chrome.tabs.sendMessage(tab.id, out, { frameId: 0 });
+    } catch (e2) {
+      return { ok: false, reason: 'Copy Cat can\'t run on this page (browser pages and the Web Store are off-limits)' };
+    }
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     switch (msg && msg.type) {
@@ -46,19 +66,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (sender.tab) await setLastFieldFrame(sender.tab.id, sender.frameId || 0);
         return { ok: true };
       case 'INSERT_ENTRY':
-      case 'FILL_GROUP_ENTRY': {
-        const tab = await activeTab();
-        if (!tab) return { ok: false, reason: 'No active tab' };
-        const frameId = (await getLastFieldFrame(tab.id)) || 0;
-        const out = msg.type === 'INSERT_ENTRY'
-          ? { type: 'INSERT_TEXT', text: msg.text }
-          : { type: 'FILL_GROUP', id: msg.id };
-        try {
-          return await chrome.tabs.sendMessage(tab.id, out, { frameId });
-        } catch (e) {
-          return { ok: false, reason: 'Copy Cat is not running on this page (refresh it, or it is a browser page)' };
-        }
-      }
+        return routeToPage({ type: 'INSERT_TEXT', text: msg.text });
+      case 'FILL_GROUP_ENTRY':
+        return routeToPage({ type: 'FILL_GROUP', id: msg.id });
       default:
         return undefined;
     }

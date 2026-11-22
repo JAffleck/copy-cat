@@ -4,6 +4,12 @@
 
   // --- STATE MANAGEMENT ---
   let isSelectionMode = false;
+
+  // False once the extension was reloaded/updated and this copy of the script was cut off
+  // (orphaned scripts must not grab keys/clicks from the freshly injected copy)
+  function extensionAlive() {
+    try { return !!(chrome.runtime && chrome.runtime.id); } catch (e) { return false; }
+  }
   let identifyMode = false;        // N: show the selected element's names (alt, aria-label, label…)
   let currentTargetElement = null;
   let frozenRanges = [];

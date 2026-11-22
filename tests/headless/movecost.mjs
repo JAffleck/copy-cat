@@ -8,7 +8,7 @@ const page = await browser.newPage();
 await page.setViewport({ width: 1280, height: 900 });
 await page.evaluateOnNewDocument(() => {
   window.chrome = { storage: { local: { get: (d, cb) => cb(Object.assign({}, d)), set: (o, cb) => cb && cb() } },
-                    runtime: { sendMessage: () => Promise.resolve(), onMessage: { addListener() {} } } };
+                    runtime: { id: 'test', sendMessage: () => Promise.resolve(), onMessage: { addListener() {} } } };
 });
 await page.goto('https://es.wikipedia.org/wiki/Quote_Unquote', { waitUntil: 'networkidle2', timeout: 90000 });
 const m = JSON.parse(readFileSync(root + '/manifest.json', 'utf8'));

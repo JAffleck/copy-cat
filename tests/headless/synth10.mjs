@@ -14,7 +14,7 @@ for (const action of ['x', 'space', 'hover']) {
   const page = await browser.newPage();
   await page.evaluateOnNewDocument(() => {
     window.chrome = { storage: { local: { get: (d, cb) => cb(Object.assign({}, d, { trackingMode: 'SINGLE_SNIP' })), set: (o, cb) => cb && cb() } },
-                      runtime: { sendMessage: () => Promise.resolve(), onMessage: { addListener() {} } } };
+                      runtime: { id: 'test', sendMessage: () => Promise.resolve(), onMessage: { addListener() {} } } };
   });
   await page.setContent(html);
   await page.addScriptTag({ content: bundle });

@@ -8,7 +8,7 @@ await page.setViewport({ width: 1000, height: 1400 });
 const errors = []; page.on('pageerror', e => errors.push(e.message));
 await page.evaluateOnNewDocument(() => {
   window.chrome = { storage: { local: { get: (d, cb) => cb(Object.assign({}, d, { trackingMode: 'SINGLE_SNIP' })), set: (o, cb) => cb && cb() } },
-                    runtime: { sendMessage: () => Promise.resolve(), onMessage: { addListener() {} } } };
+                    runtime: { id: 'test', sendMessage: () => Promise.resolve(), onMessage: { addListener() {} } } };
   window.__copied = [];
   Object.defineProperty(navigator, 'clipboard', { value: { writeText: (t) => { window.__copied.push(t); return Promise.resolve(); } } });
   const orig = Element.prototype.attachShadow;
