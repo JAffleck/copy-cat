@@ -98,10 +98,16 @@
       let maxLen = -1;
   
       for (let child of children) {
-        // Intersection Filter
+        // Intersection Filter: test the child's line boxes, not its bounding box. An inline element
+        // that wraps onto two lines has one bounding box covering both lines in full, which would
+        // swallow the text beside it (e.g. ", not " after a wrapped <phrase>).
         if (x !== undefined && y !== undefined) {
-            const rect = child.getBoundingClientRect();
-            if (!(x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom)) continue;
+            const boxes = child.getClientRects();
+            let inside = false;
+            for (const r of boxes) {
+              if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) { inside = true; break; }
+            }
+            if (!inside) continue;
         }
   
         const len = getVisibleTextLength(child);
