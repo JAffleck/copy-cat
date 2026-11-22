@@ -33,6 +33,7 @@
         "content/bookends.js",
         "content/overlay.js",
         "content/text-metrics.js",
+        "content/names.js",
         "content/selection.js",
         "content/output.js",
         "content/events.js",

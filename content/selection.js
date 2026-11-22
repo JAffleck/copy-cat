@@ -30,7 +30,11 @@
     
     shadowHost.style.visibility = 'hidden'; 
     const el = getDeepElementFromPoint(clientX, clientY);
+    const rawEl = document.elementFromPoint(clientX, clientY);
     shadowHost.style.visibility = 'visible';
+    // Text-less things with a name (image, SVG/icon, icon-only button, empty field) can be selected
+    // directly; the caret-based lookup above would otherwise jump to nearby text
+    const namedEl = getNamedTarget(rawEl);
 
     if (!el) return;
 
@@ -67,7 +71,7 @@
     }
 
     // Element Zoom granular tracking: re-evaluate at current mouse position
-    if (currentTargetElement instanceof Range) {
+    if (currentTargetElement instanceof Range && !namedEl) {
         let targetNode = null;
         let offset = -1;
         if (document.caretRangeFromPoint) {
@@ -98,7 +102,7 @@
         }
     }
 
-    const current = getElementTargetAt(el, clientX, clientY);
+    const current = namedEl || getElementTargetAt(el, clientX, clientY);
 
     if (settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(current)) {
       if (currentTargetElement !== null) {

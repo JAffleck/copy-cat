@@ -1,0 +1,46 @@
+<!doctype html>
+<!-- Test page for plan 5 (Identify view / element names). Not loaded by the extension. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Copy Cat — names test page</title>
+<style>
+  body { font: 16px sans-serif; margin: 24px; width: 760px; }
+  section { margin: 18px 0; }
+  .ext { padding-right: 16px; background: url("icons/link-external-small.svg") no-repeat right center; }
+  .icon-btn { width: 36px; height: 36px; }
+  svg { width: 32px; height: 32px; }
+  img { border: 1px solid #ccc; }
+</style>
+</head>
+<body>
+  <svg style="display:none"><symbol id="icon-trash" viewBox="0 0 10 10"><rect width="10" height="10"/></symbol>
+    <symbol id="icon-gear" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5"/></symbol></svg>
+
+  <section><label for="email">Email address</label>
+    <input id="email" name="email" type="email" placeholder="you@example.com" aria-describedby="email-hint">
+    <span id="email-hint">We never share it</span></section>
+
+  <section><label>Full name <input id="full" name="fullname" type="text"></label></section>
+
+  <section><span id="search-lbl">Search the site</span> <input id="search" type="search" aria-labelledby="search-lbl"></section>
+
+  <section><input id="pw" type="password" value="hunter2" placeholder="Password"></section>
+
+  <section><button id="del" class="icon-btn" aria-label="Delete item" title="Remove row" data-testid="row-delete">
+    <svg aria-hidden="true"><use href="#icon-trash"></use></svg></button></section>
+
+  <section><button id="fabtn" class="icon-btn"><i class="fa-solid fa-gear fa-lg"></i></button></section>
+
+  <section><svg id="gear"><title>Settings</title><use href="#icon-gear"></use></svg></section>
+
+  <section><figure><img id="cover" src="images/cover-art.png?v=2" alt="Album cover" width="120" height="80">
+    <figcaption>Quote Unquote cover</figcaption></figure></section>
+
+  <section><a id="ext" class="ext" href="https://example.com/page">Example site</a></section>
+
+  <section><div id="plain" data-testid="plain-box">Just some text in a box</div></section>
+
+  <section><p id="para">A normal paragraph with words to start selection mode on.</p></section>
+</body>
+</html>

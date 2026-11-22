@@ -193,11 +193,21 @@
       toast.style.padding = '';           
     }
 
+    if (identifyMode) { renderIdentify(toast); return; }
+
     let hint = "";
     if (zoomMode === 'ELEMENT_ZOOM') {
         hint = `<div style="font-size: 11px; color: #60a5fa; margin-top: 4px;">[Space] Zoom into surrounding brackets/quotes</div>`;
     } else {
         hint = `<div style="font-size: 11px; color: #f59e0b; margin-top: 4px;">[Space] Back to element zoom</div>`;
+    }
+
+    // Text-less selection copied by name (image, icon, empty field): say where the name came from
+    const selEl = currentTargetElement && !(currentTargetElement instanceof Range) &&
+      currentTargetElement.nodeType === Node.ELEMENT_NODE ? currentTargetElement : null;
+    if (selEl && !visibleTextOf(selEl) && isNameCandidate(selEl)) {
+      const named = getBestName(selEl);
+      if (named) hint += `<div style="font-size: 11px; color: #a1a1aa; margin-top: 2px;">Name from ${escapeHtml(named.source)} · [N] all names</div>`;
     }
 
     const themeColor = getActiveThemeColor();
@@ -256,6 +266,28 @@
       </div>
       <pre>${escapeHtml(compileOutput()) || '...'}</pre>
       ${hint}
+    `;
+  }
+
+  // Identify view: numbered list of the selected element's names (1–9 copy, N/Esc back)
+  function renderIdentify(toast) {
+    const el = currentTargetElement ? elementOf(currentTargetElement) : null;
+    const names = el ? getElementNames(currentTargetElement).slice(0, 9) : [];
+    const tag = el ? `&lt;${el.tagName.toLowerCase()}&gt;` : '';
+    const rows = names.length
+      ? names.map((n, i) => `<div style="display:flex; gap:8px; padding:2px 0; border-bottom:1px solid #27272a;">
+          <span style="color:#a1a1aa; width:14px; flex-shrink:0;">${i + 1}</span>
+          <span style="color:#60a5fa; width:86px; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(n.source)}</span>
+          <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(n.text)}">${escapeHtml(n.text)}</span>
+        </div>`).join('')
+      : `<div style="color:#a1a1aa; padding:4px 0;">${el ? 'No names found' : 'Nothing selected'}</div>`;
+    toast.style.display = 'block';
+    toast.innerHTML = `
+      <div style="font-size: 12px; margin-bottom: 8px; border-bottom: 1px solid #3f3f46; padding-bottom: 4px;">
+        <strong>🔍 Identify</strong> ${tag}
+      </div>
+      <div style="font-size: 12px;">${rows}</div>
+      <div style="font-size: 11px; color: #60a5fa; margin-top: 6px;">[1–9] Copy · [Click] Copy 1 · [N / Esc] Back</div>
     `;
   }
 

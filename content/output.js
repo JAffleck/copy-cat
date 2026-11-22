@@ -59,9 +59,13 @@
 
   // Copy compiled output to clipboard and exit selection mode with a confirmation toast
   function commitCopy() {
-    const text = compileOutput();
+    commitText(compileOutput());
+  }
+
+  // Copy the given text to the clipboard and exit selection mode with a confirmation toast
+  function commitText(text) {
     if (!text) return exitSelectionMode();
-    
+
     navigator.clipboard.writeText(text).then(() => {
       updateUI("😸 Text Copied! 😸");
       setTimeout(exitSelectionMode, 800);

@@ -29,6 +29,7 @@
   // Activate selection mode: inject shadow DOM, register capture listeners, evaluate initial position
   function startSelectionMode(x, y) {
     isSelectionMode = true;
+    identifyMode = false;
 	zoomMode = 'ELEMENT_ZOOM';
     failedZoomInAttempt = false;
     failedZoomOutAttempt = false;
@@ -51,6 +52,7 @@
   // Deactivate selection mode: remove listeners, destroy shadow DOM, restore page state
   function exitSelectionMode() {
     isSelectionMode = false;
+    identifyMode = false;
     if (rafPending) { cancelAnimationFrame(rafPending); rafPending = 0; }
     bookendScanCache = null;
     zoomLocked = false;

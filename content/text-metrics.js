@@ -192,7 +192,10 @@
   
     const interactiveText = getInteractiveElementText(element);
     if (interactiveText !== null) {
-      return interactiveText.split('\n').map(line => line.trim()).join('\n').trim();
+      const t = interactiveText.split('\n').map(line => line.trim()).join('\n').trim();
+      if (t) return t;
+      const named = getBestName(element);       // empty field: fall back to its label/aria-label
+      return named ? named.text : '';
     }
   
     // 6. Default Fallback
@@ -214,5 +217,10 @@
     });
   
     let text = clone.innerText || "";
-    return text.split('\n').map(line => line.trim()).join('\n').trim();
+    text = text.split('\n').map(line => line.trim()).join('\n').trim();
+    if (!text && isNameCandidate(element)) {      // image, SVG, icon button: copy its best name
+      const named = getBestName(element);
+      if (named) return named.text;
+    }
+    return text;
   }

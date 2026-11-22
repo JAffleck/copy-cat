@@ -64,7 +64,14 @@
     if (e.type === 'wheel') {
       handleZoom(e.deltaY < 0 ? 'in' : 'out');
     } else if (e.type === 'mousedown') {
-      if (e.button === 0) commitCopy();
+      if (e.button === 0) {
+        if (identifyMode) {
+          const first = currentTargetElement ? getElementNames(currentTargetElement)[0] : null;
+          if (first) commitText(first.text);
+        } else {
+          commitCopy();
+        }
+      }
     } else if (e.type === 'contextmenu') {
       if (settings.trackingMode === 'MULTI_SNIP') {
         if (currentTargetElement && !frozenRanges.includes(currentTargetElement)) {
@@ -77,6 +84,24 @@
       }
     } else if (e.type === 'keydown') {
       const key = e.key;
+      // Identify view keys: 1–9 copy a name, N / Esc go back to the normal preview
+      if (identifyMode) {
+        if (/^[1-9]$/.test(key)) {
+          const names = currentTargetElement ? getElementNames(currentTargetElement) : [];
+          const pick = names[Number(key) - 1];
+          if (pick) commitText(pick.text);
+          return;
+        }
+        if (key === 'Escape' || key.toLowerCase() === 'n') {
+          identifyMode = false;
+          updateUI();
+          return;
+        }
+      } else if (key.toLowerCase() === 'n' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        identifyMode = true;
+        updateUI();
+        return;
+      }
 	  if (key === ' ') {
         e.preventDefault();
         if (e.shiftKey) {

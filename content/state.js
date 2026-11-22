@@ -4,6 +4,7 @@
 
   // --- STATE MANAGEMENT ---
   let isSelectionMode = false;
+  let identifyMode = false;        // N: show the selected element's names (alt, aria-label, label…)
   let currentTargetElement = null;
   let frozenRanges = [];
   let shadowHost = null;
