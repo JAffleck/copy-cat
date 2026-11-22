@@ -1,0 +1,8 @@
+{
+  "name": "copy-cat-headless-tests",
+  "private": true,
+  "type": "module",
+  "description": "Headless and end-to-end tests for the Copy Cat extension (see README.md)",
+  "scripts": { "test": "bash run-all.sh" },
+  "devDependencies": { "puppeteer": "^25.18.1" }
+}
