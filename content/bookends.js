@@ -153,7 +153,9 @@
             if (depth === 0) { close = i; break; }
           }
           if (close !== -1 && close >= cursorIdx) break;
-          open = fullText.lastIndexOf(char, open - 1);
+          // lastIndexOf(c, -1) treats -1 as 0, so stop at index 0 (else endless loop when the
+          // text starts with this opening char and that pair doesn't enclose the cursor)
+          open = open > 0 ? fullText.lastIndexOf(char, open - 1) : -1;
           close = -1;
         }
       }
