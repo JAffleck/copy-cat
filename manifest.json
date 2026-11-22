@@ -5,7 +5,8 @@
   "description": "Easily copy any web content to your clipboard (text from link, buttons, lists, labels, paragraphs etc.)",
   "permissions": [
     "clipboardWrite",
-    "storage"
+    "storage",
+    "sidePanel"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -24,6 +25,18 @@
       "48": "48.png"
     }
   },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "commands": {
+    "open-history-picker": {
+      "suggested_key": { "default": "Alt+Shift+V" },
+      "description": "Open the Copy Cat history picker for the focused field"
+    }
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -37,8 +50,11 @@
         "content/selection.js",
         "content/output.js",
         "content/events.js",
-        "content/lifecycle.js"
+        "content/lifecycle.js",
+        "content/insert.js",
+        "content/picker.js"
       ],
+      "all_frames": true,
       "run_at": "document_start"
     }
   ]

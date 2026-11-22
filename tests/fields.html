@@ -1,0 +1,45 @@
+<!doctype html>
+<!-- Test page for plan 7 (clipboard history picker / paste into fields). Not loaded by the extension.
+     React and Vue come from a CDN. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Copy Cat — fields test page</title>
+<style>
+  body { font: 16px sans-serif; margin: 24px; width: 760px; }
+  section { margin: 14px 0; }
+  input, textarea, select { font: inherit; width: 300px; }
+  #ce { border: 1px solid #999; min-height: 24px; width: 300px; padding: 2px; }
+</style>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+  <p id="source">Ada Lovelace</p>
+  <section><label>Plain <input id="plain" type="text"></label></section>
+  <section><label>Prefilled <input id="prefilled" type="text" value="Hello "></label></section>
+  <section><label>Email <input id="email" type="email"></label></section>
+  <section><label>Number <input id="number" type="number"></label></section>
+  <section><label>Notes <textarea id="notes"></textarea></label></section>
+  <section><label>Country <select id="country"><option value="">--</option><option value="US">United States</option>
+    <option value="CA">Canada</option></select></label></section>
+  <section><div id="ce" contenteditable="true"></div></section>
+  <section><label>Password <input id="pw" type="password"></label></section>
+  <section><a id="link" href="https://example.com/file.zip">A download link</a></section>
+  <section><div id="react-root"></div></section>
+  <section><div id="vue-root"><label>Vue <input id="vue" v-model="name"></label> <span id="vue-out">{{ name }}</span></div></section>
+  <section><iframe id="frame" style="width:400px;height:60px" srcdoc="<label>In iframe <input id=inner></label>"></iframe></section>
+  <script>
+    // React controlled input; mirrors state into #react-out so tests can see what React thinks
+    const e = React.createElement;
+    function App() {
+      const [v, setV] = React.useState('');
+      return e('label', null, 'React ', e('input', { id: 'react', value: v, onChange: ev => setV(ev.target.value) }),
+        ' ', e('span', { id: 'react-out' }, v));
+    }
+    ReactDOM.createRoot(document.getElementById('react-root')).render(e(App));
+    Vue.createApp({ data: () => ({ name: '' }) }).mount('#vue-root');
+  </script>
+</body>
+</html>

@@ -54,6 +54,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // 1. Initial render
   refresh();
 
+  // Open the history side panel. Chrome requires the call to happen directly in the click, so the
+  // window id is looked up in advance.
+  let windowId = null;
+  chrome.windows.getCurrent(w => { windowId = w && w.id; });
+  const historyBtn = document.getElementById('open-history');
+  if (historyBtn) {
+    historyBtn.addEventListener('click', () => {
+      if (windowId == null) return;
+      chrome.sidePanel.open({ windowId }).then(() => window.close()).catch(() => {});
+    });
+  }
+
   // 2. Save when a radio button is clicked
   document.querySelectorAll('input[name="trackingMode"]').forEach(radio => {
     radio.addEventListener('change', (e) => {

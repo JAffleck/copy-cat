@@ -57,16 +57,23 @@
     return formattedLines.join(settings.outputFormat === 'COMBINED' ? ' ' : '\n');
   }
 
-  // Copy compiled output to clipboard and exit selection mode with a confirmation toast
+  // Copy compiled output to clipboard and exit selection mode with a confirmation toast.
+  // History: in Multi-snip each item is recorded too (then the combined copy, which ends on top);
+  // nothing is recorded if any part came from a password/card field.
   function commitCopy() {
-    commitText(compileOutput());
+    const elements = [...frozenRanges];
+    if (currentTargetElement && !elements.includes(currentTargetElement)) elements.push(currentTargetElement);
+    const secret = elements.some(el => isSecretField(elementOf(el)));
+    const items = elements.length > 1 ? elements.map(el => getCleanText(el).trim()).filter(Boolean) : [];
+    commitText(compileOutput(), { items, record: !secret });
   }
 
   // Copy the given text to the clipboard and exit selection mode with a confirmation toast
-  function commitText(text) {
+  function commitText(text, opts = {}) {
     if (!text) return exitSelectionMode();
 
     navigator.clipboard.writeText(text).then(() => {
+      if (opts.record !== false) recordHistory([...(opts.items || []), text]);
       updateUI("😸 Text Copied! 😸");
       setTimeout(exitSelectionMode, 800);
     }).catch(err => {
