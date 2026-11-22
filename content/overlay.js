@@ -17,8 +17,13 @@
     style.textContent = `
       #preview-toast { position: absolute; bottom: 24px; right: 24px; width: 340px; background: #18181b; color: #e4e4e7; padding: 16px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); font-family: system-ui, sans-serif; font-size: 13px; border: 1px solid #3f3f46; pointer-events: auto; transition: padding 0.1s ease; }
       .toast-msg { font-size: 15px; font-weight: bold; text-align: center; color: #3b82f6; white-space: nowrap; }
-      .legend-icon { font-size: 12px; margin-bottom: 8px; display: block; }
-      pre { margin: 0; white-space: pre-wrap; font-family: monospace; color: #a1a1aa; max-height: 200px; overflow-y: auto; }
+      .legend-icon { font-size: 13px; margin-bottom: 8px; display: block; }
+      .style-name { color: #fafafa; font-weight: 600; }
+      .kc { display: inline-block; min-width: 10px; padding: 0 5px; text-align: center; line-height: 17px;
+        font: 600 12px ui-monospace, SFMono-Regular, Consolas, monospace; color: #fafafa; background: #27272a;
+        border: 1px solid #52525b; border-bottom-width: 2px; border-radius: 4px; }
+      .kc-plus { color: #a1a1aa; font-size: 12px; }
+      pre { margin: 0; white-space: pre-wrap; font-family: monospace; font-size: 12.5px; color: #d4d4d8; max-height: 200px; overflow-y: auto; }
     `;
     shadowRoot.appendChild(style);
 
@@ -232,20 +237,36 @@
     
     const modeDisplay = modeLabels[settings.trackingMode] || 'Unknown';
 
-    let styleOption = '';
-    if (settings.lineDecoration === 'BULLETED' && settings.outputFormat !== 'COMBINED') styleOption = STYLE_BULLETS[settings.bulletIndex];
-    else if (settings.lineDecoration === 'NUMBERED' && settings.outputFormat !== 'COMBINED') styleOption = STYLE_OUTLINES[settings.outlineIndex];
+    const caps = styleKeycaps();
 
     toast.style.display = 'block';
     toast.innerHTML = `
       <div class="legend-icon" style="font-size: 12px; margin-bottom: 8px; border-bottom: 1px solid #3f3f46; padding-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-        <span style="display: inline-flex; color: #e4e4e7;">${styleIcon}</span>
-        <span>${settings.outputFormat === 'COMBINED' ? 'Combined' : decorationLabels[settings.lineDecoration]}${styleOption ? ' ' + escapeHtml(styleOption) : ''}</span>
+        <span style="display: inline-flex; color: #fafafa;">${styleIcon}</span>
+        <span class="style-name">${settings.outputFormat === 'COMBINED' ? 'Combined' : decorationLabels[settings.lineDecoration]}</span>
+        ${caps}
         <span style="margin-left: auto; color: #a1a1aa;">${modeDisplay}${zoomMode === 'BOOKEND_ZOOM' ? ' · Bookend' : ''}</span>
       </div>
       <pre>${escapeHtml(compileOutput()) || '...'}</pre>
       ${hint}
     `;
+  }
+
+  // Keycaps for the current style: the closing quote/bracket, + a comma key where commas are added,
+  // the bullet or number character
+  function styleKeycaps() {
+    const kc = t => `<span class="kc">${escapeHtml(t)}</span>`;
+    const plus = '<span class="kc-plus">+</span>';
+    const close = (QUOTE_PAIRS[settings.quoteIndex] || QUOTE_PAIRS[0])[1];
+    if (settings.outputFormat === 'COMBINED') return kc(close);
+    switch (settings.lineDecoration) {
+      case 'QUOTED': return kc(close);
+      case 'QUOTED_COMMA': return kc(close) + plus + kc(',');
+      case 'CSV': return kc(',');
+      case 'BULLETED': return kc(STYLE_BULLETS[settings.bulletIndex]);
+      case 'NUMBERED': return kc(STYLE_OUTLINES[settings.outlineIndex]);
+      default: return '';
+    }
   }
 
   // Identify view: numbered list of the selected element's names (1–9 copy, N/Esc back)

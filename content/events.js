@@ -2,6 +2,28 @@
 // Loaded in order with the other content/*.js files (see manifest.json); they share one
 // isolated-world scope, so top-level names here are visible to the others (not to the page).
 
+  // After Space switches element ↔ bracket/quote zoom: select what's under the mouse now, the same way
+  // a mouse move would, so the change shows without moving the mouse
+  function reselectAtMouse() {
+    clearToggleState();
+    if (zoomMode === 'BOOKEND_ZOOM') {
+      excludeDelimiters = false;
+      const snapped = snapToNearestBookend();
+      if (snapped && !(settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(snapped))) {
+        if (currentTargetElement) zoomHistory.push(currentTargetElement);
+        currentTargetElement = maybeTrim(snapped);
+      } else {
+        currentTargetElement = null;            // no pair under the mouse (as when hovering)
+      }
+      updateUI();
+    } else {
+      currentTargetElement = null;
+      zoomHistory = [];
+      evaluateMouseCoords(lastMouseX, lastMouseY);
+      updateUI();
+    }
+  }
+
   // --- EVENT PIPELINE ---
   // Global capture-phase event handler: dispatches all mouse, keyboard, and wheel events during selection
   function handleGlobalCapture(e) {
@@ -24,22 +46,9 @@
         
         zoomMode = (zoomMode === 'ELEMENT_ZOOM') ? 'BOOKEND_ZOOM' : 'ELEMENT_ZOOM';
         zoomLocked = false;
-        if (zoomMode === 'BOOKEND_ZOOM') {
-            excludeDelimiters = false;
-            savedUntrimmedRange = null;
-            const snapped = snapToNearestBookend();
-            if (snapped) {
-                if (settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(snapped)) return;
-                zoomHistory.push(currentTargetElement);
-                currentTargetElement = maybeTrim(snapped);
-                failedZoomInAttempt = false;
-                failedZoomOutAttempt = false;
-            }
-        } else {
-            failedZoomInAttempt = false;
-            failedZoomOutAttempt = false;
-        }
-        updateUI();
+        failedZoomInAttempt = false;
+        failedZoomOutAttempt = false;
+        reselectAtMouse();
         return;
     }
 
@@ -102,34 +111,7 @@
         updateUI();
         return;
       }
-	  if (key === ' ') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          settings.trackingMode = settings.trackingMode === 'SINGLE_SNIP' ? 'MULTI_SNIP' : 'SINGLE_SNIP';
-          if (settings.trackingMode === 'SINGLE_SNIP') frozenRanges = [];
-          saveSettings(); 
-          updateUI();
-        } else {
-          zoomMode = (zoomMode === 'ELEMENT_ZOOM') ? 'BOOKEND_ZOOM' : 'ELEMENT_ZOOM';
-          zoomLocked = false;
-          if (zoomMode === 'BOOKEND_ZOOM') {
-            excludeDelimiters = false;
-            savedUntrimmedRange = null;
-            const snapped = snapToNearestBookend();
-            if (snapped) {
-              if (settings.trackingMode === 'MULTI_SNIP' && isCollidingWithFrozen(snapped)) return;
-              zoomHistory.push(currentTargetElement);
-              currentTargetElement = maybeTrim(snapped);
-              failedZoomInAttempt = false;
-              failedZoomOutAttempt = false;
-            }
-          } else {
-            failedZoomInAttempt = false;
-            failedZoomOutAttempt = false;
-          }
-          updateUI();
-        }
-      } else if (['Escape', 'Backspace', 'Delete'].includes(key)) {
+      if (['Escape', 'Backspace', 'Delete'].includes(key)) {
         updateUI("❌ Copy Cancelled ❌");
         setTimeout(exitSelectionMode, 500);
       } else if (key === 'ArrowUp') { 
