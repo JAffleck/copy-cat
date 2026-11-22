@@ -264,6 +264,19 @@
     openPickerForFocus();
   }, { capture: true });
 
+  // Ctrl+Shift+H in the page: show/hide the history panel. The background ignores this when the
+  // browser shortcut is assigned (that one fires too), so it only matters as a fallback.
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'KeyH' || !e.ctrlKey || !e.shiftKey || e.altKey || !extensionAlive()) return;
+    try {
+      chrome.runtime.sendMessage({ type: 'TOGGLE_PANEL' }).then(res => {
+        if (res && res.ok === false && res.reason) {
+          pickerToast('Open the history from the Copy Cat toolbar button (no browser shortcut set)', 24, 24, 3500);
+        }
+      }).catch(() => {});
+    } catch (err) {}
+  }, { capture: true });
+
   window.addEventListener('resize', closePicker);
   window.addEventListener('scroll', () => { if (picker && !picker.field) closePicker(); else if (picker) renderPicker(); }, { capture: true, passive: true });
 

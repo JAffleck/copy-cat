@@ -6,9 +6,10 @@ body {
   color: #e1e1e6;
   font-size: 13px;
 }
+.panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 h3 {
   font-size: 16px;
-  margin: 0 0 10px 0;
+  margin: 0;
   display: flex;
   align-items: center;
   color: #fff;
@@ -56,3 +57,24 @@ li .meta { color: #71717a; font-size: 11px; margin: 4px 0; white-space: nowrap; 
 li .actions { display: flex; gap: 4px; flex-wrap: wrap; }
 li.pinned { border-color: #a16207; }
 #empty { color: #a1a1aa; }
+.icon-btn {
+  background: none; border: none; color: #a1a1aa; padding: 2px; border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.icon-btn svg { width: 16px; height: 16px; fill: currentColor; }
+.icon-btn:hover { color: #e4e4e7; background: #27272a; }
+.icon-btn.danger:hover { color: #f87171; }
+.ghead { display: flex; align-items: center; gap: 6px; }
+.ghead .gname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ghead input {
+  flex: 1; min-width: 0; font: inherit; color: #e4e4e7; background: #27272a;
+  border: 1px solid #3b82f6; border-radius: 4px; padding: 1px 4px;
+}
+li .actions .icon-btn { margin-left: auto; }
+.fields { margin: 6px 0 4px; border-top: 1px solid #29292e; padding-top: 4px; }
+.field { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid #1f1f23; }
+.field .flabel { color: #a1a1aa; width: 38%; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.field .fvalue { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.field.inactive { opacity: .45; }
+.field button { padding: 1px 6px; font-size: 11px; }
+.nofields { color: #a1a1aa; padding: 4px 0; }

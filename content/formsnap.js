@@ -87,12 +87,14 @@
     const els = fieldsIn(container);
     if (!els.length) { updateUI('No form fields in the selection'); setTimeout(() => updateUI(), 1500); return; }
     const fields = els.map(describeField);
-    const filled = fields.filter(f => f.tag !== 'SELECT' && f.type !== 'checkbox' && f.type !== 'radio' && f.value.trim());
-    const base = filled.slice(0, 2).map(f => f.value.trim()).join(', ').slice(0, 48) || 'Form';
-    const group = { name: `${base} (${location.hostname || 'page'})`, site: location.hostname, url: location.href, fields };
-    try { chrome.runtime.sendMessage({ type: 'GROUP_SAVE', group }).catch(() => {}); } catch (e) {}
-    updateUI(`💾 Saved group: ${escapeHtml(group.name)} — ${fields.length} fields`);
-    setTimeout(exitSelectionMode, 1500);
+    // Default name "Group N" (rename in the side panel); N = highest existing "Group N" + 1
+    loadGroups(groups => {
+      const n = groups.reduce((max, g) => { const m = /^Group (\d+)$/.exec(g.name || ''); return m ? Math.max(max, +m[1]) : max; }, 0) + 1;
+      const group = { name: `Group ${n}`, site: location.hostname, url: location.href, fields };
+      try { chrome.runtime.sendMessage({ type: 'GROUP_SAVE', group }).catch(() => {}); } catch (e) {}
+      updateUI(`💾 Saved ${escapeHtml(group.name)} — ${fields.length} fields (rename it in the history panel)`);
+      setTimeout(exitSelectionMode, 1500);
+    });
   }
 
   // --- matching ---

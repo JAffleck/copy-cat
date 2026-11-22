@@ -11,14 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Icon + label per line decoration (Split mode); keys are content/state.js values. Matches the legend.
   const DECORATION_STATUS = {
-    RAW:          { icon: '🔵', label: 'Split + Raw' },
-    QUOTED:       { icon: '🟦', label: 'Split + Quotes' },
-    QUOTED_COMMA: { icon: '🟩', label: 'Split + Quotes + Commas' },
-    CSV:          { icon: '📊', label: 'Split + CSV' },
-    NUMBERED:     { icon: '#️⃣', label: 'Split + Numbers' },
-    BULLETED:     { icon: '⏺️', label: 'Split + Bullets' }
+    RAW:          { icon: '🔵', label: 'Raw · split' },
+    QUOTED:       { icon: '🟦', label: 'Quotes · split' },
+    QUOTED_COMMA: { icon: '🟩', label: 'Quotes + commas · split' },
+    CSV:          { icon: '📊', label: 'CSV · split' },
+    NUMBERED:     { icon: '#️⃣', label: 'Numbers · split' },
+    BULLETED:     { icon: '⏺️', label: 'Bullets · split' }
   };
-  const COMBINED_STATUS = { icon: '🔴', label: 'Combined + Quotes' };
+  const COMBINED_STATUS = { icon: '🔴', label: 'Combined' };
 
   // Fill in missing values and convert legacy names from older popup versions
   function normalize(settings) {
@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const status = settings.outputFormat === 'COMBINED'
       ? COMBINED_STATUS
       : (DECORATION_STATUS[settings.lineDecoration] ||
-         { icon: '🔵', label: `Split + ${settings.lineDecoration}` });
+         { icon: '🔵', label: `${settings.lineDecoration} · split` });
     if (modeDisplay) {
       modeDisplay.innerText = `${status.icon} ${status.label}`;
     }
@@ -54,12 +54,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // 1. Initial render
   refresh();
 
-  // Show the browser-assigned shortcut (browsers skip a suggested key that clashes)
-  const cmdEl = document.getElementById('cmd-shortcut');
-  if (cmdEl && chrome.commands) {
+  // Show the browser-assigned panel shortcut (browsers skip a suggested key that clashes)
+  if (chrome.commands) {
     chrome.commands.getAll(cmds => {
-      const c = (cmds || []).find(x => x.name === 'open-history-picker');
-      cmdEl.textContent = c && c.shortcut ? c.shortcut : 'no browser shortcut assigned (set one in Extensions → Keyboard shortcuts)';
+      const c = (cmds || []).find(x => x.name === 'toggle-history-panel');
+      const key = c && c.shortcut;
+      for (const id of ['panel-shortcut', 'panel-shortcut-2']) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = key || 'not set';
+      }
+      const note = document.getElementById('shortcut-note');
+      if (note && !key) note.textContent = 'The browser did not assign Ctrl+Shift+H (it may clash). Set it under Extensions → Keyboard shortcuts.';
     });
   }
 

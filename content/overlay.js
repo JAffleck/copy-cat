@@ -241,8 +241,8 @@
     }
 
     const decorationLabels = {
-      'RAW': 'Raw', 'QUOTED': 'Quoted', 'QUOTED_COMMA': 'Quoted With Comma',
-      'CSV': 'CSV', 'NUMBERED': 'Numbered', 'BULLETED': 'Bulleted'
+      'RAW': 'Raw', 'QUOTED': 'Quotes', 'QUOTED_COMMA': 'Quotes + commas',
+      'CSV': 'CSV', 'NUMBERED': 'Numbers', 'BULLETED': 'Bullets'
     };
 
     const modeLabels = {

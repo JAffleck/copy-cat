@@ -36,6 +36,10 @@
     "open-history-picker": {
       "suggested_key": { "default": "Alt+Shift+V" },
       "description": "Open the Copy Cat history picker for the focused field"
+    },
+    "toggle-history-panel": {
+      "suggested_key": { "default": "Ctrl+Shift+H", "mac": "Command+Shift+H" },
+      "description": "Show or hide the Copy Cat history panel"
     }
   },
   "content_scripts": [

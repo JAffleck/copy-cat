@@ -58,7 +58,7 @@ check('wheel-out reaches the <FORM#ship>', cur.startsWith('<FORM#ship'), cur);
 await page.keyboard.press('KeyS'); await new Promise(r => setTimeout(r, 1800));
 const g = await page.evaluate(() => window.__store.formGroups[0]);
 check('group saved', !!g, g);
-check('group name from first values + site', g && g.name.startsWith('Ada Lovelace, 12 Analytical St'), g && g.name);
+check('group gets the default name Group 1', g && g.name === 'Group 1', g && g.name);
 const savedStr = JSON.stringify(g);
 check('password and card fields not saved', !savedStr.includes('hunter2') && !savedStr.includes('4111'), g && g.fields.map(f => f.id));
 check('saves checkbox + both radios (express checked)', g && g.fields.some(f => f.type === 'checkbox' && f.checked) && g.fields.some(f => f.type === 'radio' && f.value === 'express' && f.checked), g && g.fields.filter(f => f.type !== 'text'));
@@ -81,7 +81,7 @@ async function fillVia(fieldId) {
   return { picker, preview, gap, toast };
 }
 let r = await fillVia('b-name');
-check('picker shows "Saved groups" above history', r.picker && /saved groups/i.test(r.picker) && r.picker.includes('Ada Lovelace, 12 Analytical St'), r.picker);
+check('picker shows "Saved groups" above history', r.picker && /saved groups/i.test(r.picker) && r.picker.includes('Group 1'), r.picker);
 check('preview lists mapping', r.preview && r.preview.includes('Country') && r.preview.includes('Canada') && r.preview.includes('Province / State'), r.preview);
 let v = await vals(['b-name', 'b-line1', 'b-line2', 'b-city', 'b-country', 'b-state', 'b-postal', 'b-tel', 'b-same']);
 const express = await page.evaluate(() => document.querySelector('input[name=delivery_b][value=express]').checked);

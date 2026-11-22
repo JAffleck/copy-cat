@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }),
         button(e.pinned ? 'Unpin' : 'Pin', e.pinned ? 'Let it expire normally' : 'Keep it at the top, never expires',
           () => send({ type: 'HISTORY_PIN', id: e.id, pinned: !e.pinned })),
-        button('Delete', 'Remove this entry', () => send({ type: 'HISTORY_DELETE', id: e.id }))
+        iconButton('delete', 'Delete this entry', () => send({ type: 'HISTORY_DELETE', id: e.id }), 'danger')
       );
       li.append(text, meta, actions);
       listEl.appendChild(li);
@@ -92,4 +92,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   setInterval(render, 30000);   // refresh "x ago"
   load();
+
+  // Close button + Ctrl+Shift+H toggle: tell the background this window has the panel open; it asks
+  // us to close when the shortcut is pressed again. Reconnect if the background restarts.
+  document.getElementById('close-slot').appendChild(
+    iconButton('close', 'Hide history (Ctrl+Shift+H)', () => window.close()));
+  function connectPanel() {
+    chrome.windows.getCurrent(w => {
+      const port = chrome.runtime.connect({ name: 'sidepanel' });
+      port.postMessage({ type: 'PANEL_HELLO', windowId: w.id });
+      port.onMessage.addListener(m => { if (m && m.type === 'CLOSE_PANEL') window.close(); });
+      port.onDisconnect.addListener(() => setTimeout(connectPanel, 1000));
+    });
+  }
+  connectPanel();
 });

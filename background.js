@@ -59,9 +59,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'GROUP_RENAME':
         await groupsMutate(list => groupsRename(list, msg.id, msg.name));
         return { ok: true };
+      case 'GROUP_REMOVE_FIELD':
+        await groupsMutate(list => groupsRemoveField(list, msg.id, msg.index, msg.fingerprint));
+        return { ok: true };
       case 'GROUP_DELETE':
         await groupsMutate(list => groupsDelete(list, msg.id));
         return { ok: true };
+      case 'TOGGLE_PANEL': {
+        // In-page Ctrl+Shift+H: only used when the browser didn't assign the command a shortcut
+        const cmds = await chrome.commands.getAll();
+        const cmd = cmds.find(c => c.name === 'toggle-history-panel');
+        if (cmd && cmd.shortcut) return { ok: true, handledByCommand: true };
+        return togglePanel(sender.tab ? sender.tab.windowId : null);
+      }
       case 'FIELD_FOCUS':
         if (sender.tab) await setLastFieldFrame(sender.tab.id, sender.frameId || 0);
         return { ok: true };
@@ -76,9 +86,35 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return true;   // async response
 });
 
-chrome.commands.onCommand.addListener(async (command) => {
+// --- history side panel: which windows have it open, and the Ctrl+Shift+H toggle ---
+const openPanels = new Map();   // windowId -> port of the open panel
+let lastToggle = 0;
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'sidepanel') return;
+  let windowId = null;
+  port.onMessage.addListener((m) => {
+    if (m && m.type === 'PANEL_HELLO') { windowId = m.windowId; openPanels.set(windowId, port); }
+  });
+  port.onDisconnect.addListener(() => {
+    if (windowId != null && openPanels.get(windowId) === port) openPanels.delete(windowId);
+  });
+});
+
+// Must stay synchronous up to sidePanel.open so the shortcut still counts as a user action
+function togglePanel(windowId) {
+  if (windowId == null || Date.now() - lastToggle < 400) return Promise.resolve({ ok: false });
+  lastToggle = Date.now();
+  const port = openPanels.get(windowId);
+  if (port) { port.postMessage({ type: 'CLOSE_PANEL' }); return Promise.resolve({ ok: true, closed: true }); }
+  return chrome.sidePanel.open({ windowId }).then(() => ({ ok: true, opened: true }),
+    err => ({ ok: false, reason: String(err) }));
+}
+
+chrome.commands.onCommand.addListener(async (command, cmdTab) => {
+  if (command === 'toggle-history-panel') { togglePanel(cmdTab ? cmdTab.windowId : null); return; }
   if (command !== 'open-history-picker') return;
-  const tab = await activeTab();
+  const tab = cmdTab || await activeTab();
   if (!tab) return;
   // Every frame gets it; only the frame that has focus opens the picker
   chrome.tabs.sendMessage(tab.id, { type: 'OPEN_PICKER' }).catch(() => {});

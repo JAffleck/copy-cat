@@ -5,71 +5,70 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <h3><img class="title-icon" src="32.png" alt="">Copy Cat</h3>
-  
-  <div id="mode-display" class="mode-status">🔵 Split + Raw</div>
-  <button id="open-history" class="history-button">📋 Open copy history</button>
+  <header class="top">
+    <h3><img class="title-icon" src="32.png" alt="">Copy Cat</h3>
+    <button id="open-history" class="history-button" title="Show the copy history panel">
+      📋 History <kbd id="panel-shortcut">Ctrl+Shift+H</kbd>
+    </button>
+  </header>
 
-  <fieldset class="setting-fieldset">
-    <legend>Selection Snipping Style</legend>
-    <span class="hotkey-hint">Change with Shift + Space</span>
-    <div class="radio-group">
-      <label>
-        <input type="radio" name="trackingMode" value="SINGLE_SNIP"> Single-snip
-      </label>
-      <label>
-        <input type="radio" name="trackingMode" value="MULTI_SNIP"> Multi-snip
-      </label>
-    </div>
-  </fieldset>
-
-  <div class="section-title">Legend</div>
-  <ul class="legend-list">
-    <li>🔴 Combined + Quotes</li>
-    <li>🔵 Split + Raw</li>
-    <li>🟦 Split + Quotes</li>
-    <li>🟩 Split + Quotes + Commas</li>
-    <li>📊 Split + CSV</li>
-    <li>#️⃣ Split + Numbers</li>
-    <li>⏺️ Split + Bullets</li>
-  </ul>
-
-  <hr>
-
-  <div class="section-title">Hotkeys (While Active)</div>
-  <ul class="hotkey-list">
-    <li><span class="hotkey">Ctrl+Shift+Click</span> Activate/Deactivate Plugin</li>
-    <li><span class="hotkey">Esc / ⌫</span> Cancel Copy</li>
-    <li><span class="hotkey">Left-Click</span> Copy Selection</li>
-    <li><span class="hotkey">Right-Click</span> Multi-snip Freeze</li>
-    <li><span class="hotkey">Tab</span> Cycle Line Styles</li>
-    <li><span class="hotkey">Shift+Tab</span> Cycle Line Styles(reverse)</li>
-    <li><span class="hotkey">Q</span> Cycle Style Options (Forward)</li>
-    <li><span class="hotkey">Shift+Q</span> Cycle Style Options (Reverse)</li>
-    <li><span class="hotkey">X</span> Toggle Exclude Delimiters (auto-trim brackets/quotes)</li>
-    <li><span class="hotkey">N</span> Identify: list names (alt, label, aria-label, icon…) · 1–9 copy</li>
-    <li><span class="hotkey">S</span> Save the form fields in the selection as a group</li>
-  </ul>
-
-  <div class="section-title">Copy History (any time)</div>
-  <ul class="hotkey-list">
-    <li><span class="hotkey">Alt+Click field</span> Paste from history, or fill a saved form group</li>
-    <li><span class="hotkey">Alt+Click</span> Pick from history → clipboard (links keep Chrome's download)</li>
-    <li><span class="hotkey">Alt+V</span> History for the focused field (also <span id="cmd-shortcut">Alt+Shift+V</span>)</li>
-    <li><span class="hotkey">Space</span> Toggle Element / Bookend Zoom</li>
-    <li><span class="hotkey">⬆️ / ⬇️ / Wheel</span> Zoom In / Out</li>
-  </ul>
-
-  <div class="setting-group">
-    <div class="label-block">
-      <div class="title">Multi-snip Mode</div>
-      <div class="desc">Right-Click - Freeze and add new selection</div>
-    </div>
-    <label class="switch">
-      <input type="checkbox" id="trackingModeToggle">
-      <span class="slider"></span>
-    </label>
+  <div class="status-row">
+    <span class="status-label">Style</span>
+    <div id="mode-display" class="mode-status">🔵 Raw · split</div>
   </div>
+
+  <div class="status-row">
+    <span class="status-label">Snipping</span>
+    <div class="segmented" role="radiogroup" aria-label="Snipping">
+      <label><input type="radio" name="trackingMode" value="SINGLE_SNIP"><span>Single-snip</span></label>
+      <label><input type="radio" name="trackingMode" value="MULTI_SNIP"><span>Multi-snip</span></label>
+    </div>
+  </div>
+  <p class="hint">Multi-snip: right-click adds a selection; copy them all at once. Toggle with <kbd>Shift+Space</kbd>.</p>
+
+  <section>
+    <div class="section-title">Styles <span class="aside"><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> to change</span></div>
+    <div class="style-row combined">🔴 Combined <span class="muted">— everything on one line</span></div>
+    <div class="subhead">Split into lines<sup>*</sup></div>
+    <ul class="style-grid">
+      <li>🔵 Raw</li>
+      <li>🟦 Quotes</li>
+      <li>🟩 Quotes + commas</li>
+      <li>📊 CSV</li>
+      <li>#️⃣ Numbers</li>
+      <li>⏺️ Bullets</li>
+    </ul>
+    <p class="footnote"><sup>*</sup>Lists, elements and multiple selections (Multi-snip) are split into lines
+      before the style is applied. <kbd>Q</kbd> / <kbd>Shift+Q</kbd> cycles the quote, bullet or number style.</p>
+  </section>
+
+  <section>
+    <div class="section-title">Start</div>
+    <dl class="keys">
+      <dt><kbd>Ctrl+Shift+Click</kbd></dt><dd>Start selecting (again to stop)</dd>
+    </dl>
+
+    <div class="section-title">While selecting</div>
+    <dl class="keys">
+      <dt><kbd>Click</kbd></dt><dd>Copy the selection</dd>
+      <dt><kbd>Right-click</kbd></dt><dd>Multi-snip: freeze it and add another</dd>
+      <dt><kbd>Wheel</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Zoom in / out (word ↔ element ↔ page)</dd>
+      <dt><kbd>Space</kbd></dt><dd>Element zoom ↔ bracket/quote zoom</dd>
+      <dt><kbd>X</kbd></dt><dd>Include / exclude the brackets or quotes</dd>
+      <dt><kbd>N</kbd></dt><dd>Identify: names (alt, label, aria-label, icon…) · <kbd>1</kbd>–<kbd>9</kbd> copy</dd>
+      <dt><kbd>S</kbd></dt><dd>Save the form's fields as a group</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Cancel</dd>
+    </dl>
+
+    <div class="section-title">Any time</div>
+    <dl class="keys">
+      <dt><kbd>Alt+Click</kbd> a field</dt><dd>Paste from history, or fill a saved group</dd>
+      <dt><kbd>Alt+Click</kbd></dt><dd>Pick from history → clipboard (links keep the browser's download)</dd>
+      <dt><kbd>Alt+V</kbd></dt><dd>History for the focused field</dd>
+      <dt><kbd id="panel-shortcut-2">Ctrl+Shift+H</kbd></dt><dd>Show / hide the history panel</dd>
+    </dl>
+    <p class="footnote" id="shortcut-note"></p>
+  </section>
 
   <script src="popup.js"></script>
 </body>

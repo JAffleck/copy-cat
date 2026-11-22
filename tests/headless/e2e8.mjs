@@ -34,7 +34,7 @@ await page.keyboard.up('Shift'); await page.keyboard.up('Control'); await frame(
 for (let i = 0; i < 3; i++) { await page.mouse.wheel({ deltaY: 100 }); await frame(); }
 await page.keyboard.press('KeyS'); await new Promise(r => setTimeout(r, 1800));
 const groups = await sw.evaluate(async () => (await chrome.storage.local.get({ formGroups: [] })).formGroups);
-check('S saves the group through the background into chrome.storage', groups.length === 1 && groups[0].name.startsWith('Grace Hopper, 1 Compiler Way') && groups[0].site === 'localhost', groups.map(g => g.name));
+check('S saves the group through the background into chrome.storage', groups.length === 1 && groups[0].name === 'Group 1' && groups[0].site === 'localhost', groups.map(g => g.name));
 
 // background Fill route → content FILL_GROUP → fills the form last clicked in
 await page.click('#b-name'); await new Promise(r => setTimeout(r, 300));
@@ -48,9 +48,10 @@ check('side-panel Fill route fills the billing form', res && res.ok && JSON.stri
 
 const sp = await browser.newPage();
 await sp.goto(`chrome-extension://${extId}/sidepanel.html`); await new Promise(r => setTimeout(r, 500));
-const listed = await sp.$$eval('#groups li .text', els => els.map(e => e.textContent));
-check('side panel lists saved groups', listed.length === 1 && listed[0].includes('Grace Hopper'), listed);
-await sp.evaluate(() => document.querySelector('#groups li button:nth-child(3)').click());
+const listed = await sp.$$eval('#groups li .gname', els => els.map(e => e.textContent));
+const metaLine = await sp.$eval('#groups li .meta', e => e.textContent);
+check('side panel lists saved groups (name + first values in meta)', listed.length === 1 && listed[0].includes('Group 1') && metaLine.includes('Grace Hopper'), [listed, metaLine]);
+await sp.evaluate(() => document.querySelector('#groups li button[title="Delete this group"]').click());
 await new Promise(r => setTimeout(r, 500));
 const after = await sw.evaluate(async () => (await chrome.storage.local.get({ formGroups: [] })).formGroups.length);
 const hidden = await sp.evaluate(() => document.getElementById('groups-section').hidden);
