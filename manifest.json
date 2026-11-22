@@ -54,6 +54,7 @@
         "content/text-metrics.js",
         "content/names.js",
         "content/selection.js",
+        "content/navigate.js",
         "content/output.js",
         "content/events.js",
         "content/lifecycle.js",

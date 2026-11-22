@@ -40,6 +40,9 @@
 
     // After an explicit zoom, keep the selection (and its zoom level) while the mouse stays inside
     // it, so tiny hand jitter doesn't undo the zoom. Leaving it releases the lock.
+    // After ← / →: keep the keyboard's selection until the mouse really moves
+    if (keyboardHoldsSelection(clientX, clientY)) return;
+
     if (zoomLocked) {
       if (currentTargetElement && isPointInTarget(currentTargetElement, clientX, clientY, 2)) return;
       zoomLocked = false;
@@ -168,6 +171,7 @@
   // Handle zoom in/out: element zoom walks the DOM tree; bookend zoom snaps inner/outer pairs
   // Zoom in/out (wheel, ArrowUp/ArrowDown); locks the result against mouse jitter if it changed
   function handleZoom(direction) {
+    keyboardAnchor = null;
     const before = currentTargetElement;
     handleZoomInner(direction);
     if (currentTargetElement && currentTargetElement !== before) zoomLocked = true;

@@ -59,6 +59,7 @@
     zoomHistory = [];
     bookendScanCache = null;
     zoomLocked = false;
+    keyboardAnchor = null;
     lastMouseX = x;           // so the first zoom targets the word under the mouse, not 0,0
     lastMouseY = y;
     initShadowDOM();
@@ -74,6 +75,7 @@
     if (rafPending) { cancelAnimationFrame(rafPending); rafPending = 0; }
     bookendScanCache = null;
     zoomLocked = false;
+    keyboardAnchor = null;
     captureEvents.forEach(evt => window.removeEventListener(evt, handleGlobalCapture, { capture: true, passive: false }));
     destroyShadowDOM();
   }

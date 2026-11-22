@@ -6,6 +6,7 @@
   // a mouse move would, so the change shows without moving the mouse
   function reselectAtMouse() {
     clearToggleState();
+    keyboardAnchor = null;
     if (zoomMode === 'BOOKEND_ZOOM') {
       excludeDelimiters = false;
       const snapped = snapToNearestBookend();
@@ -118,6 +119,9 @@
         handleZoom('in'); 
       } else if (key === 'ArrowDown') { 
         handleZoom('out'); 
+      } else if (key === 'ArrowLeft' || key === 'ArrowRight') {
+        // previous / next word (zoomed into text) or item at the same level
+        moveSelection(key === 'ArrowLeft' ? -1 : 1);
       } else if (key === 'Tab') {
         if (e.shiftKey) {
           if (settings.outputFormat === 'SPLIT') {

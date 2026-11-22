@@ -27,6 +27,7 @@
   let lastMouseY = 0;
   let rafPending = 0; // requestAnimationFrame id while a mousemove evaluation is queued
   let zoomLocked = false; // set after wheel/arrow zoom: hold the selection while the mouse stays in it
+  let keyboardAnchor = null; // {x, y} where ← / → was pressed: small mouse jitter keeps that selection
 
   // Bookend Zoom hover-scan limits and cache (see snapToNearestBookend)
   const MAX_BOOKEND_SCAN_CHARS = 5000;

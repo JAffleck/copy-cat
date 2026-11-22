@@ -32,6 +32,7 @@ run 'wrap styles + highlight color (16)' "$SHELL_EXE" test16.mjs
 run 'Space redraw + keycaps (20)'      "$SHELL_EXE" test20.mjs
 run 'invisible chars in words (21)'    "$SHELL_EXE" test21.mjs
 run 'wrapped inline hit test (22)'     "$SHELL_EXE" test22.mjs
+run 'arrow ← / → move (23)'            "$SHELL_EXE" test23.mjs
 run 'mouse-move cost (Wikipedia)'      "$SHELL_EXE" movecost.mjs
 if [ -n "$FULL_EXE" ]; then
   run 'end-to-end history (real ext)'  "$FULL_EXE" e2e7.mjs

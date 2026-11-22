@@ -35,6 +35,7 @@ Override browsers with `CHROME_SHELL=/path/to/chrome-headless-shell` and
 | `test20.mjs` | Space re-selects without a mouse move (both ways, no pair); preview keycaps per style (plan 20) |
 | `test21.mjs` | Soft hyphens / zero-width joiners / Greek, Cyrillic, accented words select whole; invisible chars never copied (plan 21) |
 | `test22.mjs` | Text beside a line-wrapped inline element (the reported "not") is selectable; the phrase itself still is (plan 22) |
+| `test23.mjs` | ← / → move to the previous / next word (across inline elements, paragraphs, hidden text) or item; jitter vs real mouse moves (plan 23) |
 | `movecost.mjs` | Mouse-move evaluation cost (median/p95/max ms) |
 | `e2e7.mjs`, `e2e8.mjs` | Real unpacked extension: background worker, storage, side panel routes |
 | `uswds-address.mjs` | Real site (designsystem.digital.gov address form): save a group, fill it via shortcut / row click / Fill button (run by hand) |
