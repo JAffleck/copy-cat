@@ -10,6 +10,8 @@ if [ -d "$CACHE/libroot" ]; then
 fi
 SHELL_EXE="${CHROME_SHELL:-$(ls -d $CACHE/browsers/chrome-headless-shell/linux-*/chrome-headless-shell-linux64/chrome-headless-shell 2>/dev/null | tail -1)}"
 FULL_EXE="${CHROME_FULL:-$(ls -d $CACHE/browsers/chrome/linux-*/chrome-linux64/chrome 2>/dev/null | tail -1)}"
+# Puppeteer is kept outside the extension folder (plan 35); install it there on first run
+[ -d "$CACHE/test-deps/node_modules/puppeteer" ] || bash ./setup.sh
 fails=0
 run() {   # run <label> <exe> <script> [args...]
   local label=$1 exe=$2; shift 2
@@ -33,6 +35,7 @@ run 'Space redraw + keycaps (20)'      "$SHELL_EXE" test20.mjs
 run 'invisible chars in words (21)'    "$SHELL_EXE" test21.mjs
 run 'wrapped inline hit test (22)'     "$SHELL_EXE" test22.mjs
 run 'arrow ← / → move (23)'            "$SHELL_EXE" test23.mjs
+run 'element text line breaks (27)'     "$SHELL_EXE" test27.mjs
 run 'mouse-move cost (Wikipedia)'      "$SHELL_EXE" movecost.mjs
 if [ -n "$FULL_EXE" ]; then
   run 'end-to-end history (real ext)'  "$FULL_EXE" e2e7.mjs

@@ -80,6 +80,16 @@
     destroyShadowDOM();
   }
 
+  // Popup's start button (via the background, top frame only): start with no mouse position, so
+  // nothing is highlighted until the mouse moves over the page
+  try {
+    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+      if (!msg || msg.type !== 'START_SELECTION') return;
+      if (!isSelectionMode) startSelectionMode(-1, -1);
+      sendResponse({ ok: true });
+    });
+  } catch (e) { /* not running as an extension (tests) */ }
+
   window.addEventListener('mousedown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && !isSelectionMode && e.button === 0 && extensionAlive()) {
       e.preventDefault();

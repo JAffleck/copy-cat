@@ -1,5 +1,5 @@
 // Plan 21: soft hyphens / invisible characters / non-Latin letters don't split words; never copied
-import puppeteer from 'puppeteer';
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, '');

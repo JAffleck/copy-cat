@@ -57,8 +57,55 @@ section > .section-title:first-child { margin-top: 2px; }
 }
 .swatch[aria-checked="true"] { border-color: #fff; box-shadow: 0 0 0 2px #2563eb; }
 .swatch:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
-.style-grid { list-style: none; padding: 0; margin: 0 0 0 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; }
+.style-grid { list-style: none; padding: 0; margin: 0 0 0 4px; display: grid; grid-template-columns: auto auto; gap: 3px 10px; }
 .footnote { color: #71717a; font-size: 11px; margin: 8px 0 0; line-height: 1.4; }
 dl.keys { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; margin: 0; align-items: baseline; }
 dl.keys dt { white-space: nowrap; text-align: right; }
 dl.keys dd { margin: 0; color: #d4d4d8; }
+dl.keys.left dt { text-align: left; }
+
+/* Styles: (i) button and the style-info popover */
+.info-button {
+  display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;
+  margin-left: 4px; padding: 0; vertical-align: 1px; border-radius: 50%; cursor: pointer;
+  font: italic 700 11px Georgia, serif; color: #a1a1aa; background: transparent; border: 1px solid #52525b;
+}
+.info-button:hover, .info-button:focus-visible, body:has(.style-info:popover-open) .info-button {
+  color: #fff; background: #2563eb; border-color: #2563eb; outline: none;
+}
+.style-info {
+  position: fixed; inset: auto; top: 76px; left: 8px; width: 324px; margin: 0; box-sizing: border-box;
+  padding: 10px 12px; color: #e1e1e6; font-size: 13px; background: #18181b;
+  border: 1px solid #3f3f46; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,.6);
+}
+.style-info .style-row { margin-top: 0; }
+.quote-keys { margin-top: 8px; }
+.quote-keys .quote-variants { margin: 4px 0 0; }
+
+/* Tabs: Copier / Hotkeys */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid #29292e; margin: -2px 0 10px; }
+.tab {
+  padding: 5px 12px 6px; background: none; border: 0; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; color: #a1a1aa; font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  cursor: pointer;
+}
+.tab:hover { color: #e4e4e7; }
+.tab[aria-selected="true"] { color: #fff; border-bottom-color: #2563eb; }
+.tab:focus-visible { outline: 2px solid #60a5fa; outline-offset: -2px; border-radius: 4px; }
+section.panel { border-top: 0; margin-top: 0; padding-top: 0; }
+section.panel[hidden] { display: none; }
+
+/* Copier tab: big start button */
+.start-area { display: flex; flex-direction: column; align-items: center; margin: 16px 0 4px; }
+.start-button {
+  width: 136px; height: 136px; padding: 8px; border-radius: 16px; cursor: pointer;
+  background: #1f1f23; border: 1px solid #3f3f46; box-shadow: 0 4px 14px rgba(0,0,0,.4);
+  transition: transform .08s ease, border-color .1s ease, box-shadow .1s ease;
+}
+.start-button img { width: 120px; height: 120px; display: block; border-radius: 12px; }
+.start-button:hover { border-color: #2563eb; box-shadow: 0 0 0 2px #2563eb, 0 6px 18px rgba(0,0,0,.5); }
+.start-button:focus-visible { outline: 2px solid #60a5fa; outline-offset: 3px; }
+.start-button:active { transform: scale(.97); }
+.start-caption { margin-top: 8px; color: #d4d4d8; font-weight: 600; }
+.start-error { margin: 6px 0 0; color: #fca5a5; font-size: 11px; text-align: center; min-height: 0; }
+.start-error:empty { display: none; }

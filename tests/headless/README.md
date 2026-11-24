@@ -6,13 +6,18 @@ pages load React/Vue from a CDN, so a network connection is needed.
 ## Setup (once)
 ```sh
 cd tests/headless
-npm install --ignore-scripts          # puppeteer only; browsers are installed separately below
+bash setup.sh                         # puppeteer only, into ~/.cache/copycat-debug/test-deps
 npx @puppeteer/browsers install chrome-headless-shell@stable --path ~/.cache/copycat-debug/browsers
 npx @puppeteer/browsers install chrome@stable --path ~/.cache/copycat-debug/browsers   # end-to-end
 ```
 On WSL/Linux without the browser libraries (libnss3, libnspr4, libatk…), extract them without sudo
 into `~/.cache/copycat-debug/libroot` (`apt-get download <pkg>` + `dpkg-deb -x`); `run-all.sh`
 adds that folder to `LD_LIBRARY_PATH` automatically.
+
+Test tooling stays out of the extension folder: Chrome reads every file in an unpacked extension's
+folder when it loads it, so Puppeteer lives in `~/.cache/copycat-debug/test-deps` (the tests load it
+through `pptr.mjs`) and screenshots go to `~/.cache/copycat-debug/out/`. `run-all.sh` runs
+`setup.sh` automatically the first time.
 
 ## Run
 ```sh
@@ -25,7 +30,7 @@ Override browsers with `CHROME_SHELL=/path/to/chrome-headless-shell` and
 | Script | What it checks |
 |---|---|
 | `test4.mjs` | Zoom lock vs 1px jitter, first zoom targets the word under the mouse (plan 4) |
-| `shots6.mjs` | Highlighter fill colors, Multi-snip freeze; screenshots in `out/` (plan 6) |
+| `shots6.mjs` | Highlighter fill colors, Multi-snip freeze; screenshots in `~/.cache/copycat-debug/out/` (plan 6) |
 | `copytest.mjs` | Copied text for text run / word / word+x / paragraph+Tab |
 | `synth10.mjs` | No hang for x / Space / Bookend hover with every opening bracket/quote (plan 10) |
 | `test5.mjs` | Identify names for every source, hover/copy by name (plan 5) |
@@ -40,7 +45,7 @@ Override browsers with `CHROME_SHELL=/path/to/chrome-headless-shell` and
 | `e2e7.mjs`, `e2e8.mjs` | Real unpacked extension: background worker, storage, side panel routes |
 | `uswds-address.mjs` | Real site (designsystem.digital.gov address form): save a group, fill it via shortcut / row click / Fill button (run by hand) |
 | `e2e13.mjs` | Real extension: side-panel group editor (Edit, Copy one value, Remove one field, fill after edit) |
-| `e2e14.mjs` | Real extension: Group N names, rename/delete icons, history delete icon, panel toggle route, popup labels; screenshots `out/popup.png`, `out/preview.png` (plan 16 popup checks too) |
+| `e2e14.mjs` | Real extension: Group N names, rename/delete icons, history delete icon, panel toggle route, popup labels; screenshots `popup.png`, `preview.png` in `~/.cache/copycat-debug/out/` (plan 16 popup checks too) |
 | `e2e17.mjs` | Real extension: highlight follows the popup color, incl. changes while selecting; the page never overwrites it (plan 17) |
 | `e2e12.mjs` | Real extension: Alt+V / Alt+Shift+V, Insert into an unfocused page and into a tab opened before install, preview Fill button |
 

@@ -1,5 +1,5 @@
 // Plan 12: side-panel Insert and Alt+V in realistic conditions (real extension, Chrome for Testing)
-import puppeteer from 'puppeteer';
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
@@ -21,6 +21,8 @@ const browser = await puppeteer.launch({ executablePath: process.env.CHROME_EXE,
 const stale = await browser.newPage();
 await stale.goto(BASE + '/tests/fields.html', { waitUntil: 'networkidle2', timeout: 60000 });
 await stale.evaluate(() => document.getElementById('email').focus());
+const stale2 = await browser.newPage();   // plan 31: start button on a tab with no content scripts
+await stale2.goto(BASE + '/tests/fields.html', { waitUntil: 'networkidle2', timeout: 60000 });
 await browser.installExtension(ROOT);
 let swTarget = null;
 const getSW = async (not) => {
@@ -65,6 +67,15 @@ await stale.bringToFront(); await sleep(300);
 const staleId = await sw.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0].id);
 res = await sw.evaluate((tabId) => routeToPage({ type: 'INSERT_TEXT', text: 'x@y.com' }, { id: tabId }), staleId);
 check('Insert into a tab with no content scripts injects them and pastes into the focused field', res && res.ok && (await stale.evaluate(() => document.getElementById('email').value)) === 'x@y.com', [res, await stale.evaluate(() => document.getElementById('email').value)]);
+
+// 3b. Popup start button (START_SELECTION) on a tab with no content scripts: injects them and starts
+await stale2.bringToFront(); await sleep(300);
+const stale2Id = await sw.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0].id);
+const before2 = await stale2.evaluate(() => !!document.getElementById('copy-cat-host'));
+res = await sw.evaluate((tabId) => routeToPage({ type: 'START_SELECTION' }, { id: tabId }, 0), stale2Id); await sleep(300);
+check('Start button on a tab with no content scripts injects them and starts selecting', !before2 && res && res.ok && await stale2.evaluate(() => !!document.getElementById('copy-cat-host')), [before2, res]);
+await stale2.keyboard.press('Escape'); await sleep(800);
+await stale2.close();
 
 // 4. after that, Alt+V works in the same (not refreshed) tab too
 await stale.evaluate(() => { const el = document.getElementById('plain'); el.value = ''; el.focus(); });

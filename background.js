@@ -19,10 +19,11 @@ async function activeTab() {
 }
 
 // Send a side-panel action to the frame of the active tab that last had a focused field
-async function routeToPage(out, tab) {
+// (or to frameId when given, e.g. 0 for the popup's start button)
+async function routeToPage(out, tab, frameId) {
   tab = tab || await activeTab();
   if (!tab) return { ok: false, reason: 'No active tab' };
-  const frameId = (await getLastFieldFrame(tab.id)) || 0;
+  if (frameId == null) frameId = (await getLastFieldFrame(tab.id)) || 0;
   try {
     return await chrome.tabs.sendMessage(tab.id, out, { frameId });
   } catch (e) {
@@ -79,6 +80,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return routeToPage({ type: 'INSERT_TEXT', text: msg.text });
       case 'FILL_GROUP_ENTRY':
         return routeToPage({ type: 'FILL_GROUP', id: msg.id });
+      case 'START_SELECTION': {
+        // Popup's start button: selection mode in the tab's top frame (same as Ctrl+Shift+Click)
+        const tab = msg.tabId != null ? await chrome.tabs.get(msg.tabId).catch(() => null) : await activeTab();
+        const res = await routeToPage({ type: 'START_SELECTION' }, tab, 0);
+        return res || { ok: false, reason: 'Reload this page, then try again' };
+      }
       default:
         return undefined;
     }

@@ -1,5 +1,5 @@
 // Plan 16: wrap styles incl. brackets, Q cycle, one highlight color (frozen 40%), SVG style icon in the preview
-import puppeteer from 'puppeteer';
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, '');

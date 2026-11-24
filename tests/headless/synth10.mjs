@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer';
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, '');
 import { readFileSync } from 'node:fs';

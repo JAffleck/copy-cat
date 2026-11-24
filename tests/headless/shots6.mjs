@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer';
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, '');
 import { readFileSync, statSync } from 'node:fs';
@@ -38,21 +38,21 @@ await page.mouse.move(a.x, a.y);
 await page.keyboard.down('Control'); await page.keyboard.down('Shift');
 await page.mouse.click(a.x, a.y);
 await page.keyboard.up('Shift'); await page.keyboard.up('Control');
-await frame(); await page.screenshot({ path: new URL(`./out/s6_${tag}_1_textrun.png`, import.meta.url).pathname, clip });
-await page.mouse.wheel({ deltaY: -100 }); await frame(); await page.screenshot({ path: new URL(`./out/s6_${tag}_2_word.png`, import.meta.url).pathname, clip });
+await frame(); await page.screenshot({ path: OUT + `s6_${tag}_1_textrun.png`, clip });
+await page.mouse.wheel({ deltaY: -100 }); await frame(); await page.screenshot({ path: OUT + `s6_${tag}_2_word.png`, clip });
 await page.mouse.wheel({ deltaY: 100 }); await page.mouse.wheel({ deltaY: 100 }); await frame();
-await page.screenshot({ path: new URL(`./out/s6_${tag}_3_paragraph.png`, import.meta.url).pathname, clip });
+await page.screenshot({ path: OUT + `s6_${tag}_3_paragraph.png`, clip });
 console.log(tag, 'before freeze', JSON.stringify(await page.evaluate(() => window.__cc())));
 await page.mouse.click(a.x, a.y, { button: 'right' }); await frame();           // freeze (Multi-snip)
 console.log(tag, 'after freeze', JSON.stringify(await page.evaluate(() => window.__cc())));
 const b = await wordAt('Travolta');
 await page.mouse.move(b.x, b.y, { steps: 4 }); await frame();
 console.log(tag, 'after move', JSON.stringify(await page.evaluate(() => window.__cc())));
-await page.screenshot({ path: new URL(`./out/s6_${tag}_4_frozen_active.png`, import.meta.url).pathname, clip });
+await page.screenshot({ path: OUT + `s6_${tag}_4_frozen_active.png`, clip });
 const img = await page.evaluate(() => { const i = document.querySelector('#mw-content-text img'); if (!i) return null;
   i.scrollIntoView({ block: 'center' }); const r = i.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, sy: scrollY }; });
 if (img) { await frame(); await page.mouse.move(img.x, img.y, { steps: 4 }); await frame();
-  await page.screenshot({ path: new URL(`./out/s6_${tag}_5_image.png`, import.meta.url).pathname, clip: { x: Math.max(0, img.x - 250), y: Math.max(0, img.y + img.sy - 200), width: 500, height: 400 } });
+  await page.screenshot({ path: OUT + `s6_${tag}_5_image.png`, clip: { x: Math.max(0, img.x - 250), y: Math.max(0, img.y + img.sy - 200), width: 500, height: 400 } });
   console.log(tag, 'image state', await page.evaluate(() => window.__cc().cur)); }
 const borders = await page.evaluate(() => { const h = document.getElementById('copy-cat-host');
   return h ? 'overlay present' : 'no overlay'; });

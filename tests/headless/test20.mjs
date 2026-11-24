@@ -1,5 +1,5 @@
 // Plan 20: Space re-selects without a mouse move; keycaps in the preview header
-import puppeteer from 'puppeteer';
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, '');
@@ -61,24 +61,37 @@ async function start(page, w) { const p = await wordAt(page, w); await page.mous
   await page.close();
 }
 
-// 2. keycaps for each style
-const caps = (page) => page.evaluate(() => [...document.getElementById('copy-cat-host').shadowRoot.querySelectorAll('.legend-icon .kc, .legend-icon .kc-plus')].map(n => n.textContent).join(''));
+// 2. header: one keycap holding the style icon + name (plan 28; no trailing keycaps)
+const caps = (page) => page.evaluate(() => {
+  const head = document.getElementById('copy-cat-host').shadowRoot.querySelector('.legend-icon');
+  const kcs = [...head.querySelectorAll('.kc')];
+  const toast = head.parentElement;
+  const hints = [...toast.querySelectorAll('.hint')].map(h => h.textContent.replace(/\s+/g, ' ').trim());
+  return { hints, hintKeys: [...toast.querySelectorAll('.hint .kc-sm')].map(k => k.textContent), n: kcs.length, icon: !!(kcs[0] && kcs[0].querySelector('svg.style-icon')), text: kcs.map(k => k.textContent.trim()).join('|'),
+    plus: head.querySelectorAll('.kc-plus').length };
+});
 const cases = [
-  [{ lineDecoration: 'RAW' }, ''],
-  [{ lineDecoration: 'QUOTED', quoteIndex: 0 }, '"'], [{ lineDecoration: 'QUOTED', quoteIndex: 1 }, "'"], [{ lineDecoration: 'QUOTED', quoteIndex: 2 }, '`'],
-  [{ lineDecoration: 'QUOTED', quoteIndex: 3 }, ')'], [{ lineDecoration: 'QUOTED', quoteIndex: 4 }, ']'], [{ lineDecoration: 'QUOTED', quoteIndex: 5 }, '}'],
-  [{ lineDecoration: 'QUOTED_COMMA', quoteIndex: 0 }, '"+,'], [{ lineDecoration: 'QUOTED_COMMA', quoteIndex: 3 }, ')+,'],
-  [{ lineDecoration: 'CSV' }, ','], [{ lineDecoration: 'BULLETED', bulletIndex: 0 }, '•'], [{ lineDecoration: 'NUMBERED', outlineIndex: 2 }, 'A.'],
-  [{ outputFormat: 'COMBINED', quoteIndex: 4 }, ']'],
+  [{ lineDecoration: 'RAW' }, 'Raw'],
+  [{ lineDecoration: 'QUOTED', quoteIndex: 0 }, 'Double quotes'], [{ lineDecoration: 'QUOTED', quoteIndex: 1 }, 'Single quote'],
+  [{ lineDecoration: 'QUOTED', quoteIndex: 2 }, 'Backticks'], [{ lineDecoration: 'QUOTED', quoteIndex: 3 }, 'Parenthesis'],
+  [{ lineDecoration: 'QUOTED', quoteIndex: 4 }, 'Square brackets'], [{ lineDecoration: 'QUOTED', quoteIndex: 5 }, 'Curly braces'],
+  [{ lineDecoration: 'QUOTED_COMMA', quoteIndex: 0 }, 'Double quotes + commas'], [{ lineDecoration: 'QUOTED_COMMA', quoteIndex: 3 }, 'Parenthesis + commas'],
+  [{ lineDecoration: 'CSV' }, 'CSV'], [{ lineDecoration: 'BULLETED', bulletIndex: 0 }, 'Bullets'], [{ lineDecoration: 'NUMBERED', outlineIndex: 2 }, 'Numbers'],
+  [{ outputFormat: 'COMBINED', quoteIndex: 4 }, 'Combined'],
 ];
 for (const [s, want] of cases) {
   const page = await setup(Object.assign({ outputFormat: 'SPLIT' }, s));
   await start(page, 'inside');
   const got = await caps(page);
-  check(`keycaps ${JSON.stringify(s)} → ${JSON.stringify(want)}`, got === want, got);
+  check(`header keycap ${JSON.stringify(s)} → [icon ${want}]`, got.n === 1 && got.icon && got.text === want && got.plus === 0, got);
+  // plan 32: Space hint as a keycap; Q line only for styles with Q variants
+  const hasQ = s.outputFormat === 'COMBINED' || ['QUOTED', 'QUOTED_COMMA', 'BULLETED', 'NUMBERED'].includes(s.lineDecoration);
+  const qLine = got.hints.includes('Q / Shift+Q Change output style');
+  check(`  hints: Space keycap${hasQ ? ' + Q / Shift+Q line' : ', no Q line'}`, got.hintKeys[0] === 'Space' && !got.hints.some(h => h.includes('[')) && qLine === hasQ
+    && (!hasQ || (got.hintKeys.includes('Q') && got.hintKeys.includes('Shift+Q'))), got.hints);
   if (s.lineDecoration === 'QUOTED_COMMA' && s.quoteIndex === 0) {
     const box = await page.evaluate(() => { const r = document.getElementById('copy-cat-host').shadowRoot.getElementById('preview-toast').getBoundingClientRect(); return { x: r.left - 8, y: r.top - 8, width: r.width + 16, height: r.height + 16 }; });
-    await page.screenshot({ path: new URL('./out/preview-keycaps.png', import.meta.url).pathname, clip: box });
+    await page.screenshot({ path: OUT + 'preview-keycaps.png', clip: box });
   }
   await page.close();
 }

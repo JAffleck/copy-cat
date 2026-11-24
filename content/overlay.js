@@ -16,13 +16,21 @@
     const style = document.createElement('style');
     style.textContent = `
       #preview-toast { position: absolute; bottom: 24px; right: 24px; width: 340px; background: #18181b; color: #e4e4e7; padding: 16px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); font-family: system-ui, sans-serif; font-size: 13px; border: 1px solid #3f3f46; pointer-events: auto; transition: padding 0.1s ease; }
-      .toast-msg { font-size: 15px; font-weight: bold; text-align: center; color: #3b82f6; white-space: nowrap; }
+      .toast-msg { font-size: 15px; font-weight: bold; text-align: center; color: #3b82f6; white-space: nowrap;
+        display: flex; align-items: center; justify-content: center; gap: 6px; }
+      .copy-cat-icon { flex-shrink: 0; }
       .legend-icon { font-size: 13px; margin-bottom: 8px; display: block; }
       .style-name { color: #fafafa; font-weight: 600; }
       .kc { display: inline-block; min-width: 10px; padding: 0 5px; text-align: center; line-height: 17px;
         font: 600 12px ui-monospace, SFMono-Regular, Consolas, monospace; color: #fafafa; background: #27272a;
         border: 1px solid #52525b; border-bottom-width: 2px; border-radius: 4px; }
-      .kc-plus { color: #a1a1aa; font-size: 12px; }
+      .style-kc { display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px; line-height: 18px;
+        font: 600 12px system-ui, sans-serif; }
+      .style-kc .style-icon { flex-shrink: 0; }
+      .kc-sm { min-width: 8px; padding: 0 4px; line-height: 14px; font-size: 10.5px; margin: 0 1px; }
+      .hint { font-size: 11px; margin-top: 4px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+      .hint-q { color: #a1a1aa; margin-top: 3px; }
+      .no-text { color: #a1a1aa; font-style: italic; }
       pre { margin: 0; white-space: pre-wrap; font-family: monospace; font-size: 12.5px; color: #d4d4d8; max-height: 200px; overflow-y: auto; }
     `;
     shadowRoot.appendChild(style);
@@ -191,11 +199,12 @@
 
     if (identifyMode) { renderIdentify(toast); return; }
 
-    let hint = "";
-    if (zoomMode === 'ELEMENT_ZOOM') {
-        hint = `<div style="font-size: 11px; color: #60a5fa; margin-top: 4px;">[Space] Zoom into surrounding brackets/quotes</div>`;
-    } else {
-        hint = `<div style="font-size: 11px; color: #f59e0b; margin-top: 4px;">[Space] Back to element zoom</div>`;
+    let hint = zoomMode === 'ELEMENT_ZOOM'
+      ? `<div class="hint" style="color: #60a5fa;">${kcSm('Space')} Zoom into surrounding brackets/quotes</div>`
+      : `<div class="hint" style="color: #f59e0b;">${kcSm('Space')} Back to element zoom</div>`;
+    // Styles with Q variants (the same set the Q key acts on in events.js)
+    if (settings.outputFormat === 'COMBINED' || ['QUOTED', 'QUOTED_COMMA', 'BULLETED', 'NUMBERED'].includes(settings.lineDecoration)) {
+      hint += `<div class="hint hint-q">${kcSm('Q')} / ${kcSm('Shift+Q')} Change output style</div>`;
     }
 
     // Text-less selection copied by name (image, icon, empty field): say where the name came from
@@ -203,7 +212,7 @@
       currentTargetElement.nodeType === Node.ELEMENT_NODE ? currentTargetElement : null;
     if (selEl && !visibleTextOf(selEl) && isNameCandidate(selEl)) {
       const named = getBestName(selEl);
-      if (named) hint += `<div style="font-size: 11px; color: #a1a1aa; margin-top: 2px;">Name from ${escapeHtml(named.source)} · [N] all names</div>`;
+      if (named) hint += `<div class="hint" style="color: #a1a1aa; margin-top: 2px;">Name from ${escapeHtml(named.source)} · ${kcSm('N')} all names</div>`;
     }
 
     // One highlight color (chosen in the popup), whatever the copy style
@@ -225,8 +234,10 @@
     // The copy style shows here only: its icon + name
     const styleIcon = styleIconSvg(styleKindFor(settings), settings.quoteIndex, 16);
 
+    // Quote styles are named by their marks (Q cycles them)
+    const quoteName = QUOTE_NAMES[settings.quoteIndex] || QUOTE_NAMES[0];
     const decorationLabels = {
-      'RAW': 'Raw', 'QUOTED': 'Quotes', 'QUOTED_COMMA': 'Quotes + commas',
+      'RAW': 'Raw', 'QUOTED': quoteName, 'QUOTED_COMMA': quoteName + ' + commas',
       'CSV': 'CSV', 'NUMBERED': 'Numbers', 'BULLETED': 'Bullets'
     };
 
@@ -237,36 +248,28 @@
     
     const modeDisplay = modeLabels[settings.trackingMode] || 'Unknown';
 
-    const caps = styleKeycaps();
-
     toast.style.display = 'block';
     toast.innerHTML = `
       <div class="legend-icon" style="font-size: 12px; margin-bottom: 8px; border-bottom: 1px solid #3f3f46; padding-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-        <span style="display: inline-flex; color: #fafafa;">${styleIcon}</span>
-        <span class="style-name">${settings.outputFormat === 'COMBINED' ? 'Combined' : decorationLabels[settings.lineDecoration]}</span>
-        ${caps}
+        <span class="kc style-kc">${styleIcon}<span class="style-name">${settings.outputFormat === 'COMBINED' ? 'Combined' : decorationLabels[settings.lineDecoration]}</span></span>
         <span style="margin-left: auto; color: #a1a1aa;">${modeDisplay}${zoomMode === 'BOOKEND_ZOOM' ? ' · Bookend' : ''}</span>
       </div>
-      <pre>${escapeHtml(compileOutput()) || '...'}</pre>
+      <pre>${escapeHtml(compileOutput()) || noTextLabel()}</pre>
       ${hint}
     `;
   }
 
-  // Keycaps for the current style: the closing quote/bracket, + a comma key where commas are added,
-  // the bullet or number character
-  function styleKeycaps() {
-    const kc = t => `<span class="kc">${escapeHtml(t)}</span>`;
-    const plus = '<span class="kc-plus">+</span>';
-    const close = (QUOTE_PAIRS[settings.quoteIndex] || QUOTE_PAIRS[0])[1];
-    if (settings.outputFormat === 'COMBINED') return kc(close);
-    switch (settings.lineDecoration) {
-      case 'QUOTED': return kc(close);
-      case 'QUOTED_COMMA': return kc(close) + plus + kc(',');
-      case 'CSV': return kc(',');
-      case 'BULLETED': return kc(STYLE_BULLETS[settings.bulletIndex]);
-      case 'NUMBERED': return kc(STYLE_OUTLINES[settings.outlineIndex]);
-      default: return '';
-    }
+  // Names of the wrap styles (index into QUOTE_PAIRS) shown in the preview header
+  const QUOTE_NAMES = ['Double quotes', 'Single quote', 'Backticks', 'Parenthesis', 'Square brackets', 'Curly braces'];
+
+  // A small keycap for a key in the preview's hint lines
+  function kcSm(key) { return `<span class="kc kc-sm">${escapeHtml(key)}</span>`; }
+
+  // Preview body when the selection has no text: "[div No text]" (muted), or "..." when nothing is selected
+  function noTextLabel() {
+    const el = elementOf(currentTargetElement || frozenRanges[frozenRanges.length - 1]);
+    if (!el) return '...';
+    return `<span class="no-text">[${escapeHtml(el.tagName.toLowerCase())} No text]</span>`;
   }
 
   // Identify view: numbered list of the selected element's names (1–9 copy, N/Esc back)
@@ -287,7 +290,7 @@
         <strong>🔍 Identify</strong> ${tag}
       </div>
       <div style="font-size: 12px;">${rows}</div>
-      <div style="font-size: 11px; color: #60a5fa; margin-top: 6px;">[1–9] Copy · [Click] Copy 1 · [N / Esc] Back</div>
+      <div class="hint" style="color: #60a5fa; margin-top: 6px;">${kcSm('1')}–${kcSm('9')} Copy · ${kcSm('Click')} Copy 1 · ${kcSm('N')} / ${kcSm('Esc')} Back</div>
     `;
   }
 

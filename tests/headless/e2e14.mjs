@@ -1,11 +1,10 @@
-// Plan 14: group names + rename/delete icons, history delete icon, panel toggle route, popup labels
-import puppeteer from 'puppeteer';
+// Plan 14: group names + rename/delete icons, history delete icon, panel toggle route, popup labels · plan 31: popup tabs + start button
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, '');
-const OUT = new URL('./out/', import.meta.url).pathname;
 const server = http.createServer((req, res) => {
   const p = path.join(ROOT, decodeURIComponent(new URL(req.url, 'http://x').pathname));
   if (!p.startsWith(ROOT) || !existsSync(p)) { res.writeHead(404); return res.end(); }
@@ -79,13 +78,18 @@ await sw.evaluate(() => chrome.storage.local.set({ outputFormat: 'SPLIT', lineDe
 await pp.goto(`chrome-extension://${extId}/popup.html`); await sleep(400);
 check('popup: no current-style row at the top', !(await pp.$('#mode-display')), null);
 check('popup: no Single/Multi-snip mode row (Shift+Space is in the hotkeys)', !(await pp.$('input[name=trackingMode]')), null);
-const icons = await pp.$$eval('[data-style-icon] svg', els => els.length);
-check('popup legend uses SVG style icons (7) + 6 quote variants', icons === 7 && (await pp.$$eval('#quote-variants svg', els => els.length)) === 6, icons);
-const keys = await pp.$$eval('dl.keys dd', els => els.map(e => e.textContent));
-check('hotkey rows: Shift+Space present, Q / Shift+Q moved out of the hotkeys', keys.includes('Switch between single-snip or multi-snip modes') && !keys.some(k => /Cycle style/.test(k)), keys);
-const dagger = await pp.$$eval('.footnote', els => els.map(e => e.textContent.replace(/\s+/g, ' ').trim()));
-check('† on Quotes and Quotes + commas; † note explains Q with the 6 variants', (await pp.$$eval('.style-grid li', els => els.filter(e => e.textContent.trim().endsWith('†')).length)) === 2
-  && dagger.some(t => t.startsWith('†Press Q / Shift+Q to cycle between quote, parenthesis and bracket styles')), dagger);
+const icons = await pp.$$eval('#style-info [data-style-icon] svg', els => els.length);
+check('popup legend uses SVG style icons (7) + 6 quote variants, inside the style-info popover', icons === 7 && (await pp.$$eval('#style-info #quote-variants svg', els => els.length)) === 6, icons);
+// Tabs: Copier (default: swatches + start button) / Hotkeys
+const tabState = () => pp.evaluate(() => [...document.querySelectorAll('[role=tab]')].map(t => [t.textContent.trim(), t.getAttribute('aria-selected'),
+  document.getElementById(t.getAttribute('aria-controls')).hidden]));
+check('tabs: Copier (selected, shown) and Hotkeys (hidden)', JSON.stringify(await tabState()) === JSON.stringify([['Copier', 'true', false], ['Hotkeys', 'false', true]]), await tabState());
+const startImg = await pp.$eval('#panel-copier #start-selecting img', i => ({ ok: i.complete && i.naturalWidth > 0 && i.getAttribute('src') === '128.png', w: Math.round(i.getBoundingClientRect().width),
+  radius: getComputedStyle(i.parentElement).borderRadius }));
+check('Copier: big start button with the cat icon (128.png, loaded, 120px, rounded corners)', startImg.ok && startImg.w === 120 && startImg.radius === '16px', startImg);
+check('Copier: highlight swatches are in the Copier tab', (await pp.$$('#panel-copier #highlight-swatches')).length === 1, null);
+check('no Styles section', !(await pp.$('section.styles')), null);
+await pp.screenshot({ path: OUT + 'popup-copier.png', fullPage: true });
 const swatches = await pp.$$eval('#highlight-swatches .swatch', els => els.map(e => [e.title, e.getAttribute('aria-checked')]));
 check('highlight swatches: red, green, blue (default, checked), yellow, cyan, magenta', JSON.stringify(swatches) === JSON.stringify([['Red', 'false'], ['Green', 'false'], ['Blue', 'true'], ['Yellow', 'false'], ['Cyan', 'false'], ['Magenta', 'false']]), swatches);
 await pp.click('#highlight-swatches .swatch[title=Yellow]'); await sleep(300);
@@ -95,7 +99,46 @@ await sw0.evaluate(() => chrome.storage.local.set({ highlightColor: '#0000FF' })
 await pp.reload(); await sleep(400);
 const btn = await pp.$eval('#open-history', b => ({ text: b.textContent.trim(), title: b.title }));
 check('History button: label + icon only, shortcut in the tooltip', btn.text === '📋 History' && /^(Ctrl\+Shift\+H|No shortcut set) - Toggle copy history panel/.test(btn.title), btn);
+
+await pp.click('#tab-hotkeys'); await sleep(150);
+check('clicking Hotkeys shows the Hotkeys tab', JSON.stringify(await tabState()) === JSON.stringify([['Copier', 'false', true], ['Hotkeys', 'true', false]]), await tabState());
+await pp.focus('#tab-hotkeys'); await pp.keyboard.press('ArrowLeft'); await sleep(100);
+check('← on the tabs goes back to Copier', (await tabState())[0][1] === 'true', await tabState());
+await pp.click('#tab-hotkeys'); await sleep(150);
+const titles = await pp.$$eval('#panel-hotkeys .section-title', els => els.map(e => e.textContent.trim()));
+check('Hotkeys tab: Start / While selecting / Any time', JSON.stringify(titles) === JSON.stringify(['Start', 'While selecting', 'Any time']), titles);
+const rows = await pp.$$eval('#panel-hotkeys dl.keys:not(.quote-keys) dt', els => els.map(e => e.textContent.replace(/\s+/g, ' ').trim()));
+const ti = rows.indexOf('Tab / Shift+Tab');
+check('Tab / Shift+Tab row directly above Right-click, then Shift+Space', ti > 0 && rows[ti + 1] === 'Right-click' && rows[ti + 2] === 'Shift+Space', rows);
+const keys = await pp.$$eval('#panel-hotkeys dl.keys dd', els => els.map(e => e.textContent.trim()));
+check('Tab row says "Cycle styles" with an (i) button', keys.some(k => /^Cycle styles/.test(k)) && !!(await pp.$('#panel-hotkeys .info-button')), keys);
+const infoOpen = () => pp.$eval('#style-info', e => e.matches(':popover-open') && e.getBoundingClientRect().height > 0);
+check('style-info popover hidden at first', !(await infoOpen()), null);
+await pp.click('#panel-hotkeys .info-button'); await sleep(200);
+check('clicking (i) opens the style-info popover', await infoOpen(), null);
+const fits = await pp.$eval('#style-info', e => { const r = e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; });
+check('popover fits inside the popup (below or above the row)', fits, null);
+const qRow = await pp.$eval('#style-info .quote-keys dt', e => e.textContent.replace(/\s+/g, ' ').trim());
+check('popover has the Q / Shift+Q hotkey row', qRow === 'Q / Shift+Q', qRow);
+await pp.screenshot({ path: OUT + 'popup-style-info.png' });
+await pp.keyboard.press('Escape'); await sleep(200);
+check('Esc closes the style-info popover', !(await infoOpen()), null);
+const dagger = await pp.$$eval('#style-info .footnote', els => els.map(e => e.textContent.replace(/\s+/g, ' ').trim()));
+check('† on Quotes and Quotes + commas; † note explains Q', (await pp.$$eval('.style-grid li', els => els.filter(e => e.textContent.trim().endsWith('†')).length)) === 2
+  && dagger.some(t => t.startsWith('†Quote styles: Q / Shift+Q picks the quote')), dagger);
 await pp.screenshot({ path: OUT + 'popup.png', fullPage: true });
+
+// Start button route: START_SELECTION puts the page into selection mode (same as Ctrl+Shift+Click)
+await page.bringToFront(); await page.goto(BASE + '/tests/forms.html', { waitUntil: 'networkidle2', timeout: 60000 });
+const pageTabId = await sw.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0].id);
+const startRes = await pp.evaluate((tabId) => chrome.runtime.sendMessage({ type: 'START_SELECTION', tabId }), pageTabId);
+await sleep(300);
+check('START_SELECTION → ok and the page is in selection mode (preview host present)', startRes && startRes.ok && await page.evaluate(() => !!document.getElementById('copy-cat-host')), startRes);
+const hl = await page.evaluate(() => { const el = document.querySelector('label, h1, h2, p'); el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.left + 10, y: r.top + r.height / 2 }; });
+await page.mouse.move(hl.x, hl.y); await page.mouse.move(hl.x + 4, hl.y); await sleep(300);
+await page.screenshot({ path: OUT + 'start-button-selecting.png' });
+await page.keyboard.press('Escape'); await sleep(800);   // exits after the 500ms "Copy Cancelled" toast
+check('Esc leaves selection mode started from the button', !(await page.evaluate(() => !!document.getElementById('copy-cat-host'))), null);
 
 // in-page preview with the SVG style icon (screenshot for review)
 await sw.evaluate(() => chrome.storage.local.set({ outputFormat: 'SPLIT', lineDecoration: 'QUOTED_COMMA', quoteIndex: 0, trackingMode: 'SINGLE_SNIP' }));

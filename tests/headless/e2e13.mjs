@@ -1,5 +1,5 @@
 // Plan 13: side-panel group editor — Edit expands fields, Copy one value, Remove one field
-import puppeteer from 'puppeteer';
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
@@ -50,7 +50,7 @@ await cityRow.hover(); await sleep(100);
 check('row icons shown while hovered', (await vis('City')) === 'visible' && (await vis('Full name')) === 'hidden', [await vis('City'), await vis('Full name')]);
 const xColor = await sp.evaluate(() => getComputedStyle([...document.querySelectorAll('#groups .field')].find(e => e.querySelector('.flabel').textContent === 'City').querySelector('.danger-x')).color);
 check('the X is red', xColor === 'rgb(248, 113, 113)', xColor);
-await sp.screenshot({ path: new URL('./out/field-row-hover.png', import.meta.url).pathname });
+await sp.screenshot({ path: OUT + 'field-row-hover.png' });
 
 // Copy one value (the City row)
 await sp.evaluate(() => [...document.querySelectorAll('#groups .field')].find(e => e.querySelector('.flabel').textContent === 'City').querySelector('button[title="Copy this value"]').click());

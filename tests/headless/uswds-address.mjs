@@ -1,5 +1,5 @@
 // Real site: USWDS address form — save a group with S, clear, Alt+click → group → Enter → fill
-import puppeteer from 'puppeteer';
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, '');
 const sleep = ms => new Promise(r => setTimeout(r, ms));

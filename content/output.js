@@ -45,7 +45,7 @@
             case 'QUOTED': return `${qOpen}${escaped}${qClose}`;
             case 'QUOTED_COMMA': return `${qOpen}${escaped}${qClose}${isLastItem ? '' : ','}`;
             case 'CSV': return `${line}${isLastItem ? '' : ','}`;
-            case 'NUMBERED': return `${oChar === '1.' ? (lIndex + 1) + '.' : oChar} ${line}`;
+            case 'NUMBERED': return `${outlineMarker(oChar, lIndex + 1)} ${line}`;
             case 'BULLETED': return `${bChar} ${line}`;
             case 'RAW':
             default: return line;
@@ -56,6 +56,25 @@
     });
   
     return formattedLines.join(settings.outputFormat === 'COMBINED' ? ' ' : '\n');
+  }
+
+  // Numbering marker for item n (1-based): "1." → "n.", "A." / "a." → A…Z, AA, AB… (lowercase for
+  // "a."), "i." → lowercase roman numerals (correct up to 3999; past that, the number)
+  function outlineMarker(style, n) {
+    if (style === 'A.' || style === 'a.') {
+      let s = '';
+      for (let k = n; k > 0; k = Math.floor((k - 1) / 26)) s = String.fromCharCode(65 + (k - 1) % 26) + s;
+      return (style === 'a.' ? s.toLowerCase() : s) + '.';
+    }
+    if (style === 'i.' || style === 'I.') {
+      if (n < 1 || n > 3999) return n + '.';
+      const table = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+        [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+      let s = '';
+      for (const [v, r] of table) while (n >= v) { s += r; n -= v; }
+      return (style === 'i.' ? s.toLowerCase() : s) + '.';
+    }
+    return n + '.';
   }
 
   // Copy compiled output to clipboard and exit selection mode with a confirmation toast.
@@ -76,7 +95,7 @@
 
     navigator.clipboard.writeText(text).then(() => {
       if (opts.record !== false) recordHistory([...(opts.items || []), text]);
-      updateUI("😸 Text Copied! 😸");
+      updateUI(copyCatIconSvg(18) + '<span>Text Copied!</span>');
       setTimeout(exitSelectionMode, 800);
     }).catch(err => {
       updateUI("❌ Clipboard Error ❌");

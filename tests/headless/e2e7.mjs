@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer';
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
@@ -87,7 +87,7 @@ check('history icons hidden until hover; a pinned entry keeps its pin visible', 
 const ada = await sp.evaluateHandle(() => [...document.querySelectorAll('#list li')].find(li => li.querySelector('.text').textContent === 'Ada Lovelace'));
 await ada.hover(); await new Promise(r => setTimeout(r, 100));
 check('hovering an entry shows its copy, insert, pin, delete icons', (await entryVis()).find(v => v.startsWith('Ada Lovelace')).endsWith(':vvvv'), await entryVis());
-await sp.screenshot({ path: new URL('./out/history-hover.png', import.meta.url).pathname });
+await sp.screenshot({ path: OUT + 'history-hover.png' });
 await sp.evaluate(() => [...document.querySelectorAll('#list li')].find(li => li.querySelector('.text').textContent === 'Ada Lovelace').querySelector('button[title="Delete this entry"]').click());
 await new Promise(r => setTimeout(r, 500));
 check('Delete button removes the entry', !(await hist()).includes('Ada Lovelace'), await hist());

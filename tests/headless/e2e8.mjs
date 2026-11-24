@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer';
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';

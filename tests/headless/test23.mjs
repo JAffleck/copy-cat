@@ -1,5 +1,5 @@
 // Plan 23: ← / → move to the previous / next word or item while selecting
-import puppeteer from 'puppeteer';
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, '');

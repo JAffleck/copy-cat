@@ -69,17 +69,25 @@
       .btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
       .btn.primary:hover { background: #1d4ed8; }
       .toast { position: fixed; background: #18181b; color: #e4e4e7; border: 1px solid #3f3f46; border-radius: 6px;
-        padding: 6px 12px; font: 13px system-ui, sans-serif; pointer-events: none; box-shadow: 0 6px 16px rgba(0,0,0,.4); }
+        padding: 6px 12px; font: 13px system-ui, sans-serif; pointer-events: none; box-shadow: 0 6px 16px rgba(0,0,0,.4);
+        display: flex; align-items: center; gap: 6px; }
+      .toast .copy-cat-icon { flex-shrink: 0; color: #60a5fa; }
     `;
     pickerRoot.appendChild(style);
     (document.body || document.documentElement).appendChild(pickerHost);
   }
 
-  function pickerToast(message, x, y, ms = 1400) {
+  // iconSvg (optional): trusted icon markup shown before the message; the message stays plain text
+  function pickerToast(message, x, y, ms = 1400, iconSvg = '') {
     ensurePickerHost();
     const t = document.createElement('div');
     t.className = 'toast';
-    t.textContent = message;
+    if (iconSvg) {
+      t.innerHTML = iconSvg;
+      t.append(message);
+    } else {
+      t.textContent = message;
+    }
     t.style.left = Math.max(8, Math.min(x, innerWidth - 260)) + 'px';
     t.style.top = Math.max(8, Math.min(y, innerHeight - 40)) + 'px';
     pickerRoot.querySelectorAll('.toast').forEach(n => n.remove());   // one at a time
@@ -184,7 +192,7 @@
       pickerToast(res.ok ? '✅ Pasted' : '❌ ' + res.reason, at.left, at.bottom + 4);
     } else {
       navigator.clipboard.writeText(text).then(
-        () => pickerToast('😸 Copied — paste with Ctrl+V', at.left, at.bottom + 4),
+        () => pickerToast('Copied — paste with Ctrl+V', at.left, at.bottom + 4, 1400, copyCatIconSvg(16)),
         () => pickerToast('❌ Clipboard error', at.left, at.bottom + 4));
     }
   }

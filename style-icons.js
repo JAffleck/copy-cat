@@ -68,3 +68,16 @@ function styleIconSvg(kind, quoteIndex = 0, size = 16) {
 function styleKindFor(settings) {
   return settings.outputFormat === 'COMBINED' ? 'COMBINED' : (settings.lineDecoration || 'RAW');
 }
+
+// Copy Cat's "copied" icon: a copy-file icon (back sheet + front sheet) with a cat face on the front
+// sheet; eyes are cut out (even-odd). Used in place of the 😸 emoji in the copied toasts.
+// The sheets use currentColor; the cat is the main color of the cat in the extension icon.
+const COPY_CAT_COLOR = '#e8b57c';
+function copyCatIconSvg(size = 18) {
+  return `<svg class="copy-cat-icon" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+    '<path d="M4.5,7.5 V19.5 A1.5,1.5 0 0 0 6,21 H15.5"/>' +
+    '<rect x="8" y="2.5" width="12" height="16" rx="1.5"/>' +
+    `<path stroke="none" fill="${COPY_CAT_COLOR}" fill-rule="evenodd" d="M10.8,14 V7.6 L12.7,9.4 H15.3 L17.2,7.6 V14 Q17.2,16.2 14,16.2 Q10.8,16.2 10.8,14 Z` +
+    ' M12.8,12.3 m-0.7,0 a0.7,0.7 0 1,0 1.4,0 a0.7,0.7 0 1,0 -1.4,0 Z M15.2,12.3 m-0.7,0 a0.7,0.7 0 1,0 1.4,0 a0.7,0.7 0 1,0 -1.4,0 Z"/>' +
+    '</svg>';
+}

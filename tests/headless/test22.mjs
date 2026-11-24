@@ -1,5 +1,5 @@
 // Plan 22: text beside a line-wrapped inline element is selectable (hit-test by line boxes)
-import puppeteer from 'puppeteer';
+import { puppeteer, OUT } from './pptr.mjs';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, '');

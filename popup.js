@@ -11,6 +11,22 @@ document.addEventListener('DOMContentLoaded', () => {
     variants.innerHTML = QUOTE_PAIRS.map((pair, i) => `<span title="${pair.join(' ')}">${styleIconSvg('QUOTED', i, 16)}</span>`).join('');
   }
 
+  // Style info popover (the (i) on the Tab row): open it just below that row, or above it when it
+  // would run past the bottom of the popup
+  const info = document.getElementById('style-info');
+  const infoBtn = document.querySelector('[popovertarget="style-info"]');
+  if (info && infoBtn) {
+    info.addEventListener('beforetoggle', e => {
+      if (e.newState === 'open') info.style.top = (infoBtn.closest('dd').getBoundingClientRect().bottom + 6) + 'px';
+    });
+    info.addEventListener('toggle', e => {
+      if (e.newState !== 'open') return;
+      const row = infoBtn.closest('dd').getBoundingClientRect();
+      const h = info.getBoundingClientRect().height;
+      if (row.bottom + 6 + h > innerHeight) info.style.top = Math.max(4, row.top - 6 - h) + 'px';
+    });
+  }
+
   // Highlight color: one color for every style (the in-page highlight), saved for the content scripts
   // bug-reporter's recording palette (videoTelemetry.js COLORS) without black and white
   const HIGHLIGHT_COLORS = [['#FF0000', 'Red'], ['#00FF00', 'Green'], ['#0000FF', 'Blue'], ['#FFFF00', 'Yellow'],
@@ -57,6 +73,42 @@ document.addEventListener('DOMContentLoaded', () => {
     historyBtn.addEventListener('click', () => {
       if (windowId == null) return;
       chrome.sidePanel.open({ windowId }).then(() => window.close()).catch(() => {});
+    });
+  }
+
+  // Tabs: Copier (default) / Hotkeys. Click, or ← / → between the tabs.
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  function selectTab(tab) {
+    for (const t of tabs) {
+      const on = t === tab;
+      t.setAttribute('aria-selected', String(on));
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    }
+    if (info && info.matches(':popover-open')) info.hidePopover();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => selectTab(t));
+    t.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
+      selectTab(next);
+      next.focus();
+    });
+  });
+
+  // Start selecting on the active tab (same as Ctrl+Shift+Click), then close the popup
+  const startBtn = document.getElementById('start-selecting');
+  const startError = document.getElementById('start-error');
+  if (startBtn) {
+    startBtn.addEventListener('click', async () => {
+      startError.textContent = '';
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab) { startError.textContent = 'No active tab'; return; }
+      const res = await chrome.runtime.sendMessage({ type: 'START_SELECTION', tabId: tab.id })
+        .catch(err => ({ ok: false, reason: String(err) }));
+      if (res && res.ok) window.close();
+      else startError.textContent = (res && res.reason) || 'Could not start selecting on this page';
     });
   }
 });

@@ -10,30 +10,26 @@
     <button id="open-history" class="history-button" title="Ctrl+Shift+H - Toggle copy history panel">📋 History</button>
   </header>
 
-  <div class="status-row">
-    <span class="status-label">Highlight</span>
-    <div class="swatches" id="highlight-swatches" role="radiogroup" aria-label="Highlight color"></div>
-  </div>
+  <nav class="tabs" role="tablist" aria-label="Popup sections">
+    <button class="tab" role="tab" id="tab-copier" aria-controls="panel-copier" aria-selected="true">Copier</button>
+    <button class="tab" role="tab" id="tab-hotkeys" aria-controls="panel-hotkeys" aria-selected="false" tabindex="-1">Hotkeys</button>
+  </nav>
 
-  <section>
-    <div class="section-title">Styles <span class="aside"><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> to change</span></div>
-    <div class="style-row combined"><span data-style-icon="COMBINED"></span> Combined <span class="muted">— everything on one line</span></div>
-    <div class="subhead">Split into lines<sup>*</sup></div>
-    <ul class="style-grid">
-      <li><span data-style-icon="RAW"></span> Raw</li>
-      <li><span data-style-icon="QUOTED"></span> Quotes<sup>†</sup></li>
-      <li><span data-style-icon="QUOTED_COMMA"></span> Quotes + commas<sup>†</sup></li>
-      <li><span data-style-icon="CSV"></span> CSV</li>
-      <li><span data-style-icon="NUMBERED"></span> Numbers</li>
-      <li><span data-style-icon="BULLETED"></span> Bullets</li>
-    </ul>
-    <p class="footnote"><sup>*</sup>Lists, elements and multiple selections (Multi-snip) are split into lines
-      before the style is applied.</p>
-    <p class="footnote"><sup>†</sup>Press <kbd>Q</kbd> / <kbd>Shift+Q</kbd> to cycle between quote, parenthesis and
-      bracket styles <span class="quote-variants" id="quote-variants"></span></p>
+  <section class="panel" role="tabpanel" id="panel-copier" aria-labelledby="tab-copier">
+    <div class="status-row">
+      <span class="status-label">Highlight</span>
+      <div class="swatches" id="highlight-swatches" role="radiogroup" aria-label="Highlight color"></div>
+    </div>
+    <div class="start-area">
+      <button id="start-selecting" class="start-button" title="Start selecting on this page (same as Ctrl+Shift+Click)">
+        <img src="128.png" alt="">
+      </button>
+      <div class="start-caption">Start selecting</div>
+      <p class="start-error" id="start-error" role="alert"></p>
+    </div>
   </section>
 
-  <section>
+  <section class="panel" role="tabpanel" id="panel-hotkeys" aria-labelledby="tab-hotkeys" hidden>
     <div class="section-title">Start</div>
     <dl class="keys">
       <dt><kbd>Ctrl+Shift+Click</kbd></dt><dd>Start selecting (again to stop)</dd>
@@ -42,8 +38,6 @@
     <div class="section-title">While selecting</div>
     <dl class="keys">
       <dt><kbd>Click</kbd></dt><dd>Copy the selection</dd>
-      <dt><kbd>Right-click</kbd></dt><dd>Multi-snip: freeze it and add another</dd>
-      <dt><kbd>Shift+Space</kbd></dt><dd>Switch between single-snip or multi-snip modes</dd>
       <dt><kbd>Wheel</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Zoom in / out (word ↔ element ↔ page)</dd>
       <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next word or item</dd>
       <dt><kbd>Space</kbd></dt><dd>Element zoom ↔ bracket/quote zoom</dd>
@@ -51,6 +45,11 @@
       <dt><kbd>N</kbd></dt><dd>Identify: names (alt, label, aria-label, icon…) · <kbd>1</kbd>–<kbd>9</kbd> copy</dd>
       <dt><kbd>S</kbd></dt><dd>Save the form's fields as a group</dd>
       <dt><kbd>Esc</kbd></dt><dd>Cancel</dd>
+      <dt><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd></dt>
+      <dd>Cycle styles <button class="info-button" popovertarget="style-info" title="Style info"
+        aria-label="Style info">i</button></dd>
+      <dt><kbd>Right-click</kbd></dt><dd>Multi-snip: freeze it and add another</dd>
+      <dt><kbd>Shift+Space</kbd></dt><dd>Switch between single-snip or multi-snip modes</dd>
     </dl>
 
     <div class="section-title">Any time</div>
@@ -61,6 +60,26 @@
       <dt><kbd id="panel-shortcut-2">Ctrl+Shift+H</kbd></dt><dd>Show / hide the history panel</dd>
     </dl>
     <p class="footnote" id="shortcut-note"></p>
+    <div id="style-info" class="style-info" popover>
+      <div class="style-row combined"><span data-style-icon="COMBINED"></span> Combined <span class="muted">— everything on one line</span></div>
+      <div class="subhead">Split into lines<sup>*</sup></div>
+      <ul class="style-grid">
+        <li><span data-style-icon="RAW"></span> Raw</li>
+        <li><span data-style-icon="QUOTED"></span> <span>Quotes<sup>†</sup></span></li>
+        <li><span data-style-icon="QUOTED_COMMA"></span> <span>Quotes + commas<sup>†</sup></span></li>
+        <li><span data-style-icon="CSV"></span> CSV</li>
+        <li><span data-style-icon="NUMBERED"></span> Numbers</li>
+        <li><span data-style-icon="BULLETED"></span> Bullets</li>
+      </ul>
+      <dl class="keys left quote-keys">
+        <dt><kbd>Q</kbd> / <kbd>Shift+Q</kbd></dt>
+        <dd>Cycle quote &amp; bracket styles<sup>†</sup><br><span class="quote-variants" id="quote-variants"></span></dd>
+      </dl>
+      <p class="footnote"><sup>*</sup>Lists, elements and multiple selections (Multi-snip) are split into lines
+        before the style is applied.</p>
+      <p class="footnote"><sup>†</sup>Quote styles: <kbd>Q</kbd> / <kbd>Shift+Q</kbd> picks the quote,
+        parenthesis or bracket.</p>
+    </div>
   </section>
 
   <script src="style-icons.js"></script>

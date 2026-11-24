@@ -204,29 +204,102 @@
       return named ? named.text : '';
     }
   
-    // 6. Default Fallback
-    // Clone node and replace internal SELECT trees with text nodes of their intended value
-    // to safeguard native innerText against leaking unintended nested options
-    let clone = element.cloneNode(true);
-    const originalSelects = element.querySelectorAll ? element.querySelectorAll('select') : [];
-    const clonedSelects = clone.querySelectorAll ? clone.querySelectorAll('select') : [];
-    
-    clonedSelects.forEach((clonedSel, idx) => {
-        const originalSel = originalSelects[idx];
-        if (originalSel) {
-            const textContent = getCleanText(originalSel, showFullList);
-            const textNode = document.createTextNode(textContent);
-            if (clonedSel.parentNode) {
-                clonedSel.parentNode.replaceChild(textNode, clonedSel);
-            }
-        }
-    });
-  
-    let text = clone.innerText || "";
+    // 6. Default Fallback: the rendered text (innerText) of the live element, so block elements,
+    // list items and <br> give separate lines, inline spans stay joined, and hidden content
+    // (script/style, display:none) is skipped. innerText of a detached node has no layout and falls
+    // back to textContent (no line breaks, script/style code included), so never read it detached.
+    let text = renderedTextWithControls(element, showFullList);
     text = text.split('\n').map(line => line.trim()).join('\n').trim();
     if (!text && isNameCandidate(element)) {      // image, SVG, icon button: copy its best name
       const named = getBestName(element);
       if (named) return named.text;
     }
     return text;
+  }
+
+  // Text a form control inside a container contributes: { text, block } or null (nothing).
+  // Selects: the chosen option. Input buttons: their value (what the button shows; the browser's
+  // default "Submit"/"Reset" without one), each its own line. Text fields: the typed value, inline.
+  // Never: passwords/secrets, hidden, checkbox/radio/file/range/color, or controls not rendered.
+  const TEXT_FIELD_TYPES = ['text', 'search', 'email', 'url', 'tel', 'number', 'date', 'time',
+    'datetime-local', 'month', 'week'];
+  function controlText(ctrl, showFullList) {
+    if (typeof ctrl.checkVisibility === 'function' && !ctrl.checkVisibility()) return null;
+    const tag = ctrl.tagName.toUpperCase();
+    if (tag === 'SELECT') return { text: getCleanText(ctrl, showFullList), block: false };
+    if (tag === 'TEXTAREA') return ctrl.value.trim() ? { text: ctrl.value.trim(), block: false } : null;
+    if (isSecretField(ctrl)) return null;
+    const type = ctrl.type;
+    if (type === 'submit' || type === 'reset' || type === 'button') {
+      const v = ctrl.hasAttribute('value') ? ctrl.value : (type === 'submit' ? 'Submit' : type === 'reset' ? 'Reset' : '');
+      return v.trim() ? { text: v.trim(), block: true } : null;
+    }
+    if (type === 'image') return ctrl.alt && ctrl.alt.trim() ? { text: ctrl.alt.trim(), block: true } : null;
+    if (TEXT_FIELD_TYPES.includes(type)) return ctrl.value.trim() ? { text: ctrl.value.trim(), block: false } : null;
+    return null;
+  }
+
+  // Container tags: separate items even when CSS shows them side by side (plan 33). Inline text
+  // tags (span, a, b, code…) are not listed: next to text or each other they stay joined.
+  const CONTAINER_TAGS = new Set(['DIV', 'P', 'LI', 'UL', 'OL', 'DL', 'DT', 'DD', 'SECTION', 'ARTICLE', 'ASIDE',
+    'NAV', 'HEADER', 'FOOTER', 'MAIN', 'FIGURE', 'FIGCAPTION', 'BLOCKQUOTE', 'FORM', 'FIELDSET', 'TABLE', 'TR',
+    'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'PRE', 'ADDRESS', 'DETAILS', 'SUMMARY']);
+  const MAX_SCAN = 3000;   // whole-page zoom: skip the scan so mouse moves stay fast
+
+  // Indexes (in querySelectorAll('*') order) of container-tag descendants shown inline / inline-block…
+  function inlineContainerIndexes(all) {
+    if (all.length > MAX_SCAN) return [];
+    const out = [];
+    for (let i = 0; i < all.length; i++) {
+      if (!CONTAINER_TAGS.has(all[i].tagName)) continue;
+      if (getComputedStyle(all[i]).display.startsWith('inline')) out.push(i);
+    }
+    return out;
+  }
+
+  // innerText of the element. A clone is read instead (briefly attached right after the element,
+  // so page CSS still applies; off-screen; removed in the same synchronous step) when:
+  // - form controls are inside (select, input, textarea): they aren't in innerText (a select lists
+  //   every option), so each is replaced by its text (controlText);
+  // - container tags are shown side by side (inline-block divs…): innerText would run them together
+  //   ("GmailImages"), so in the clone they are made display:block, one item per line.
+  function renderedTextWithControls(element, showFullList) {
+    if (!element.querySelectorAll) return element.innerText || '';
+    const CONTROLS = 'select, input, textarea';
+    const controls = element.querySelectorAll(CONTROLS);
+    const all = element.querySelectorAll('*');
+    const inlineIdx = inlineContainerIndexes(all);
+    if (!controls.length && !inlineIdx.length) return element.innerText || '';
+
+    const clone = element.cloneNode(true);
+    if (inlineIdx.length) {                       // before the controls swap changes the order
+      const cloneAll = clone.querySelectorAll('*');
+      for (const i of inlineIdx) if (cloneAll[i]) cloneAll[i].style.setProperty('display', 'block', 'important');
+    }
+    clone.querySelectorAll(CONTROLS).forEach((clonedCtrl, idx) => {
+      const original = controls[idx];
+      if (!clonedCtrl.parentNode) return;
+      const t = original ? controlText(original, showFullList) : null;
+      let replacement;
+      if (!t) replacement = document.createTextNode('');
+      else if (t.block) { replacement = document.createElement('div'); replacement.textContent = t.text; }
+      else replacement = document.createTextNode(t.text);
+      clonedCtrl.parentNode.replaceChild(replacement, clonedCtrl);
+    });
+    clone.removeAttribute('id');
+    clone.setAttribute('aria-hidden', 'true');
+    clone.style.setProperty('position', 'absolute', 'important');
+    clone.style.setProperty('left', '-99999px', 'important');
+    clone.style.setProperty('top', '0', 'important');
+    clone.style.setProperty('pointer-events', 'none', 'important');
+    const parent = element.parentNode;
+    if (!parent) return clone.innerText || '';
+    try {
+      parent.insertBefore(clone, element.nextSibling);
+      return clone.innerText || '';
+    } catch (e) {
+      return clone.innerText || '';
+    } finally {
+      clone.remove();
+    }
   }
